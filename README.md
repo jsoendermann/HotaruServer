@@ -7,12 +7,12 @@ Hotaru is built around cloud functions which are called on the client, execute o
 ### TODO (before 1.0)
 - Queries
 - Cloud functions
-- Save
 - Schema
+- Save
 - User sync
 
 
 ### TODO (after 1.0)
 - Migrations
-- Objects sync as plug in
+- Object sync as plug in
 - Roles
