@@ -1,11 +1,19 @@
 import bcrypt from 'bcryptjs';
 import { MongoClient } from 'mongodb';
 import _ from 'lodash';
-import { freshId, validateEmail } from './utils';
+import { freshId, validateEmail, isAlphanum } from './utils';
 import HotaruError from './HotaruError';
 
 
 export default class MongoAdapter {
+  static get SavingMode() {
+    return {
+      UPSERT: Symbol.for('upsert'),
+      CREATE_ONLY: Symbol.for('create only'),
+      UPDATE_ONLY: Symbol.for('update only'),
+    };
+  }
+
   constructor({ uri, schema, validatePassword = p => p.length > 6 }) {
     this._uri = uri;
     this._schema = schema;
@@ -56,29 +64,76 @@ export default class MongoAdapter {
 
   // }
 
-  async save(className, objects) {
-    const existingObjects = objects.filter(obj => obj._id !== undefined);
+  async saveUser(user) {
+    const savedUser = await this.saveObject(
+      '_User',
+      user,
+      {
+        savingMode: MongoAdapter.SavingMode.UPDATE_ONLY,
+        _allowSavingToInternalClasses: true,
+      }
+    );
+    return savedUser;
+  }
+
+  async saveObject(className, object, { savingMode = MongoAdapter.SavingMode.UPSERT, _allowSavingToInternalClasses = false } = {}) {
+    const [savedObject] = await this.saveAll(className, [object], { savingMode, _allowSavingToInternalClasses });
+    return savedObject;
+  }
+
+  async saveAll(className, objects, { savingMode = MongoAdapter.SavingMode.UPSERT, _allowSavingToInternalClasses = false } = {}) {
+    // Make sure savingMode is a valid value
+    if (!Object.values(MongoAdapter.SavingMode).includes(savingMode)) {
+      throw new HotaruError(HotaruError.UNKNOWN_SAVING_MODE, String(savingMode));
+    }
+
+    // Only allow saving to classes with non-alphanumeric names if _allowSavingToInternalClasses is true
+    if (!(isAlphanum(className) || _allowSavingToInternalClasses)) {
+      throw new HotaruError(HotaruError.INVALID_CLASS_NAME, className);
+    }
 
     // Make sure objects does not contain the same existing object more than once
+    const existingObjects = objects.filter(obj => obj._id !== undefined);
     if (_.uniq(existingObjects.map(o => o._id)).length < existingObjects.length) {
       throw new HotaruError(HotaruError.CAN_NOT_SAVE_TWO_OBJECTS_WITH_SAME_ID);
     }
 
+    if (savingMode === MongoAdapter.SavingMode.UPDATE_ONLY &&
+      objects.includes(obj => obj._id === undefined)) {
+      throw new HotaruError(HotaruError.OBJECT_WITHOUT_ID_IN_UPDATE_ONLY_SAVING_MODE);
+    }
+
     const now = new Date();
     for (const obj of objects) {
+      // Create fresh _ids for new objects which don't have an _id yet. Note: We allow objects with _id !== undefined
+      // in CREATE_ONLY savingMode because the user might want to set the _id herself to something other than freshId() on new objects
       obj._id = obj._id || freshId();
       obj.createdAt = obj.createdAt || now;
       obj.updatedAt = now;
     }
 
     const collection = await this._getCollection(className);
+
+    const ids = objects.map(obj => obj._id);
+    if (savingMode === MongoAdapter.SavingMode.CREATE_ONLY || savingMode === MongoAdapter.SavingMode.UPDATE_ONLY) {
+      const existingObjectsWithIdInIds = await collection.find({ _id: { $in: ids } }).toArray();
+
+      if (savingMode === MongoAdapter.SavingMode.CREATE_ONLY && existingObjectsWithIdInIds.length > 0) {
+        throw new HotaruError(HotaruError.CAN_NOT_OVERWRITE_OBJECT_IN_CREATE_ONLY_SAVING_MODE);
+      } else if (savingMode === MongoAdapter.SavingMode.UPDATE_ONLY && existingObjectsWithIdInIds.length !== objects.length) {
+        throw new HotaruError(HotaruError.CAN_NOT_CREATE_NEW_OBJECT_IN_UPDATE_ONLY_SAVING_MODE);
+      }
+    }
+
     const bulkOp = collection.initializeUnorderedBulkOp();
 
     objects.forEach(obj => {
       bulkOp.find({ _id: obj._id }).upsert().update({ $set: obj });
     });
 
-    return bulkOp.execute();
+    await bulkOp.execute();
+
+    return await collection.find({ _id: { $in: ids } }).toArray();
   }
 
   static _freshUserObject(email, hashedPassword, isGuest) {
@@ -109,34 +164,34 @@ export default class MongoAdapter {
 
     const hashedPassword = bcrypt.hashSync(password, 10);
 
-    const writeOpResult = await _User.insertOne(MongoAdapter._freshUserObject(email, hashedPassword, false));
-    const newUser = writeOpResult.ops[0];
+    const newUser = await this.saveUser(
+      MongoAdapter._freshUserObject(email, hashedPassword, false),
+      { savingMode: MongoAdapter.SavingMode.CREATE_ONLY }
+    );
 
     return newUser;
   }
 
   async _createGuestUser() {
-    const _User = await this._getUserCollection();
-
-    const writeOpResult = await _User.insertOne(MongoAdapter._freshUserObject(null, null, true));
-    const newGuestUser = writeOpResult.ops[0];
+    const newGuestUser = await this.saveUser(MongoAdapter._freshUserObject(null, null, true));
 
     return newGuestUser;
   }
 
   async _createSession(userId) {
-    const _Session = await this._getSessionCollection();
-    const newSession = {
-      _id: freshId(32),
-      userId,
-      createdAt: new Date(),
-      expiresAt: new Date('Jan 1, 2039'),
-      // installationId
-    };
+    const newSession = await this.saveObject(
+      '_Session',
+      {
+        _id: freshId(32),
+        userId,
+        createdAt: new Date(),
+        expiresAt: new Date('Jan 1, 2039'),
+        // installationId
+      },
+      { _allowSavingToInternalClasses: true }
+    );
 
-    const writeOpResult = await _Session.insertOne(newSession);
-
-    return writeOpResult.ops[0];
+    return newSession;
   }
 
   async _getUserWithSessionId(sessionId) {

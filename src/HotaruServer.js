@@ -94,7 +94,7 @@ export default class HotaruServer {
     user.__hashedPassword = bcrypt.hashSync(password, 10);
     user.__isGuest = false;
 
-    await this.dbAdapter.save('_User', [user]);
+    await this.dbAdapter.saveUser(user);
 
     return {};
   }
