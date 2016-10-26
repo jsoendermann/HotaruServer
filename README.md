@@ -8,7 +8,6 @@ Hotaru is built around cloud functions which are called on the client, execute o
 - Queries
 - Cloud functions
 - Schema
-- Save
 - User sync
 
 
