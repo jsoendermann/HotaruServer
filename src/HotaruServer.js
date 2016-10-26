@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import HotaruError from './HotaruError';
 
 // This should eventually be a decorator
-function routeHandlerWrapper(routeHandler) {
+function routeHandlerWrapper(routeHandler, debug = false) {
   return async function (req, res) {
     res.setHeader('Content-Type', 'application/json');
 
@@ -15,8 +15,10 @@ function routeHandlerWrapper(routeHandler) {
       let response;
       if (error instanceof HotaruError) {
         response = { status: 'error', code: error.code, message: error.message };
-      } else {
+      } else if (debug) {
         response = { status: 'error', code: -1, message: error.toString() };
+      } else {
+        response = { status: 'error', code: -1, message: 'Internal error' };
       }
       res.send(JSON.stringify(response));
     }
@@ -25,15 +27,15 @@ function routeHandlerWrapper(routeHandler) {
 
 export default class HotaruServer {
 
-  constructor({ dbAdapter, cloudFunctions }) {
+  constructor({ dbAdapter, cloudFunctions, debug = false }) {
     this.dbAdapter = dbAdapter;
     this.cloudFunctions = cloudFunctions;
 
-    this.logInAsGuest = routeHandlerWrapper(this.logInAsGuest.bind(this));
-    this.signUp = routeHandlerWrapper(this.signUp.bind(this));
-    this.convertGuestUser = routeHandlerWrapper(this.convertGuestUser.bind(this));
-    this.logIn = routeHandlerWrapper(this.logIn.bind(this));
-    this.logOut = routeHandlerWrapper(this.logOut.bind(this));
+    this.logInAsGuest = routeHandlerWrapper(this.logInAsGuest.bind(this), debug);
+    this.signUp = routeHandlerWrapper(this.signUp.bind(this), debug);
+    this.convertGuestUser = routeHandlerWrapper(this.convertGuestUser.bind(this), debug);
+    this.logIn = routeHandlerWrapper(this.logIn.bind(this), debug);
+    this.logOut = routeHandlerWrapper(this.logOut.bind(this), debug);
   }
 
   static createServer(args) {

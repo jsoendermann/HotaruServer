@@ -14,6 +14,7 @@ const server = HotaruServer.createServer({
     // { name: 'a+', func: a },
     // { name: 'b', func: b}
   ],
+  debug: true,
 });
 
 app.use('/api', server);
