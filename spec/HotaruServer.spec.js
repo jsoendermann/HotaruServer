@@ -10,7 +10,7 @@ install();
 const DB_URI = 'mongodb://localhost:27017/hotaru_test';
 const PORT = 3030;
 
-describe('MongoAdapter', function () {
+describe('HotaruServer', function () {
   const express = require('express');
   const HotaruServer = require('../lib/HotaruServer').default;
   const MongoAdapter = require('../lib/MongoAdapter').default;
