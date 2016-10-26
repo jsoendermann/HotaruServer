@@ -7,7 +7,7 @@ install();
 
 
 describe('freshIds', function () {
-  const freshId = require('../../lib/utils/freshId').freshId;
+  const freshId = require('../../lib/utils').freshId;
 
 
   it('should create correct ids', function () {
