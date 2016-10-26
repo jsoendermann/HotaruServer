@@ -40,6 +40,7 @@
         "strict": 0,
         "arrow-parens": 0,
         "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
-        "no-underscore-dangle": 0
+        "no-underscore-dangle": 0,
+        "brace-style": 0
     }
 }
