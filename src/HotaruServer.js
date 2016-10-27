@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import bodyParser from 'body-parser';
 import bcrypt from 'bcryptjs';
+import _ from 'lodash';
 import HotaruError from './HotaruError';
+import { isAlphanum } from './utils';
 
 // This should eventually be a decorator
 function routeHandlerWrapper(routeHandler, debug = false) {
@@ -30,37 +32,32 @@ export default class HotaruServer {
   constructor({ dbAdapter, cloudFunctions, debug = false }) {
     this.dbAdapter = dbAdapter;
     this.cloudFunctions = cloudFunctions;
+    this.debug = debug;
 
-    this.logInAsGuest = routeHandlerWrapper(this.logInAsGuest.bind(this), debug);
-    this.signUp = routeHandlerWrapper(this.signUp.bind(this), debug);
-    this.convertGuestUser = routeHandlerWrapper(this.convertGuestUser.bind(this), debug);
-    this.logIn = routeHandlerWrapper(this.logIn.bind(this), debug);
-    this.logOut = routeHandlerWrapper(this.logOut.bind(this), debug);
+    _.bindAll(this, ['logInAsGuest', 'signUp', 'convertGuestUser', 'logIn', 'logOut', 'runCloudFunction']);
   }
 
-  static createServer(args) {
-    const server = new HotaruServer(args);
+  static createServer({ dbAdapter, cloudFunctions, debug = false }) {
+    const server = new HotaruServer({ dbAdapter, cloudFunctions, debug });
     const router = Router({ caseSensitive: true }); // eslint-disable-line new-cap
     router.use(bodyParser.json());
 
-    router.post('/_logInAsGuest', server.logInAsGuest);
-    router.post('/_signUp', server.signUp);
-    router.post('/_convertGuestUser', server.convertGuestUser);
-    router.post('/_logIn', server.logIn);
-    router.post('/_logOut', server.logOut);
+    router.post('/_logInAsGuest', (req, res) => routeHandlerWrapper(server.logInAsGuest, server.debug)(req, res));
+    router.post('/_signUp', (req, res) => routeHandlerWrapper(server.signUp, server.debug)(req, res));
+    router.post('/_convertGuestUser', (req, res) => routeHandlerWrapper(server.convertGuestUser, server.debug)(req, res));
+    router.post('/_logIn', (req, res) => routeHandlerWrapper(server.logIn, server.debug)(req, res));
+    router.post('/_logOut', (req, res) => routeHandlerWrapper(server.logOut, server.debug)(req, res));
 
-    // router.post('/_synchronizeUser', (res, req) => logIn(req, res, dbAdapter));
-    // router.post('/_synchronizeObjects', (res, req) => logIn(req, res, dbAdapter));
+    cloudFunctions.forEach(({ name }) => {
+      if (!isAlphanum(name)) {
+        throw new HotaruError(HotaruError.CLOUD_FUNCTION_NAMES_MUST_BE_ALPHANUMERIC);
+      }
 
-    // cloudFunctions.forEach(({ name, func }) => {
-    //     if (!/^[a-z0-9]+$/i.test(name)) {
-    //         throw new Error(`Cloud function names must be alphanumeric, "${name}" isn't.`);
-    //     }
-
+      router.post(`/${name}`, (req, res) => routeHandlerWrapper(server.runCloudFunction(name), server.debug)(req, res));
+    });
 
     return router;
   }
-
 
   async logInAsGuest(_req) {
     const newUser = await this.dbAdapter._createGuestUser();
@@ -121,5 +118,21 @@ export default class HotaruServer {
       throw new HotaruError(HotaruError.LOGOUT_FAILED);
     }
     return {};
+  }
+
+  runCloudFunction(cloudFunctionName) {
+    return async function (req) {
+      const { sessionId, params, installationDetails } = req.body;
+
+      if (sessionId === undefined) {
+        throw new HotaruError(HotaruError.NOT_LOGGED_IN);
+      }
+
+      const user = await this.dbAdapter._getUserWithSessionId(sessionId);
+      this.dbAdapter.constructor._stripInternalFields(user);
+
+      const cloudFunction = this.cloudFunctions.find(({ name }) => cloudFunctionName === name).func;
+      return await cloudFunction(this.dbAdapter, user, params, installationDetails);
+    }.bind(this);
   }
 }

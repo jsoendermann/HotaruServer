@@ -29,6 +29,8 @@ export default class HotaruError extends Error {
   static get UNKNOWN_SORT_OPERATOR() { return 115; }
   static get CAN_NOT_DELETE_OBJECT_WITHOUT_ID() { return 116; }
   static get CAN_NOT_DELETE_TWO_OBJECTS_WITH_SAME_ID() { return 117; }
+  static get CLOUD_FUNCTION_NAMES_MUST_BE_ALPHANUMERIC() { return 118; }
+  static get NOT_LOGGED_IN() { return 119; }
 
   static messageWithCode(code) {
     switch (code) {
@@ -55,6 +57,9 @@ export default class HotaruError extends Error {
         return 'Can not delete object without _id';
       case HotaruError.CAN_NOT_DELETE_TWO_OBJECTS_WITH_SAME_ID:
         return 'Can not delete two objects with the same _id';
+      case HotaruError.CLOUD_FUNCTION_NAMES_MUST_BE_ALPHANUMERIC:
+        return 'Cloud function names must be alphanumeric';
+      case HotaruError.NOT_LOGGED_IN: return 'Not logged in';
       default: return `Error ${code}`;
     }
   }

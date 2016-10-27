@@ -172,7 +172,7 @@ export default class MongoAdapter {
 
   async _internalSaveAll(className, objects, { savingMode = MongoAdapter.SavingMode.UPSERT } = {}) {
     // Make sure savingMode is a valid value
-    if (!Object.values(MongoAdapter.SavingMode).includes(savingMode)) {
+    if (!Object.keys(MongoAdapter.SavingMode).map(k => MongoAdapter.SavingMode[k]).includes(savingMode)) {
       throw new HotaruError(HotaruError.UNKNOWN_SAVING_MODE, String(savingMode));
     }
 

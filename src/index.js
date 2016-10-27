@@ -11,8 +11,18 @@ const server = HotaruServer.createServer({
     schema: null,
   }),
   cloudFunctions: [
-    // { name: 'a+', func: a },
-    // { name: 'b', func: b}
+    {
+      name: 'hello',
+      func: async function (dbAdapter, user, params, installationDetails) {
+        return params;
+      },
+    },
+    {
+      name: 'world',
+      func: async function (dbAdapter, user, params, installationDetails) {
+
+      },
+    },
   ],
   debug: true,
 });
