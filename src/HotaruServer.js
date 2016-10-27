@@ -7,7 +7,7 @@ import { isAlphanum } from './utils';
 
 // This should eventually be a decorator
 function routeHandlerWrapper(routeHandler, debug = false) {
-  return async function (req, res) {
+  return async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
 
     try {
@@ -121,7 +121,7 @@ export default class HotaruServer {
   }
 
   runCloudFunction(cloudFunctionName) {
-    return async function (req) {
+    return async (req) => {
       const { sessionId, params, installationDetails } = req.body;
 
       if (sessionId === undefined) {
@@ -133,6 +133,6 @@ export default class HotaruServer {
 
       const cloudFunction = this.cloudFunctions.find(({ name }) => cloudFunctionName === name).func;
       return await cloudFunction(this.dbAdapter, user, params, installationDetails);
-    }.bind(this);
+    };
   }
 }
