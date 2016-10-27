@@ -25,6 +25,8 @@ export default class HotaruError extends Error {
   static get OBJECT_WITHOUT_ID_IN_UPDATE_ONLY_SAVING_MODE() { return 111; }
   static get CAN_NOT_OVERWRITE_OBJECT_IN_CREATE_ONLY_SAVING_MODE() { return 112; }
   static get CAN_NOT_CREATE_NEW_OBJECT_IN_UPDATE_ONLY_SAVING_MODE() { return 113; }
+  static get UNKNOWN_QUERY_SELECTOR() { return 114; }
+  static get UNKNOWN_SORT_OPERATOR() { return 115; }
 
   static messageWithCode(code) {
     switch (code) {
@@ -45,6 +47,8 @@ export default class HotaruError extends Error {
         return 'Can not overwrite object in CREATE_ONLY savingMode';
       case HotaruError.CAN_NOT_CREATE_NEW_OBJECT_IN_UPDATE_ONLY_SAVING_MODE:
         return 'Can not create new objet in UPDATE_ONLY savingMode';
+      case HotaruError.UNKNOWN_QUERY_SELECTOR: return 'Unknown query selector';
+      case HotaruError.UNKNOWN_SORT_OPERATOR: return 'Unknown sort operator';
       default: return `Error ${code}`;
     }
   }

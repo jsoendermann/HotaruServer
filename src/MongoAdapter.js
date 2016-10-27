@@ -56,26 +56,121 @@ export default class MongoAdapter {
     return this._getCollection('_Session');
   }
 
-  // find(query) {
+  static _convertQuerySelectors(selectors) {
+    const mongoSelectors = [];
 
-  // }
+    for (const selector of selectors) {
+      switch (selector.type) {
+        case 'equalTo':
+          mongoSelectors.push({ [selector.key]: { $eq: selector.value } });
+          break;
+        case 'notEqualTo':
+          mongoSelectors.push({ [selector.key]: { $ne: selector.value } });
+          break;
+        case 'lessThan':
+          mongoSelectors.push({ [selector.key]: { $lt: selector.value } });
+          break;
+        case 'lessThanOrEqual':
+          mongoSelectors.push({ [selector.key]: { $lte: selector.value } });
+          break;
+        case 'greaterThan':
+          mongoSelectors.push({ [selector.key]: { $gt: selector.value } });
+          break;
+        case 'greaterThanOrEqual':
+          mongoSelectors.push({ [selector.key]: { $gte: selector.value } });
+          break;
+        case 'containedIn':
+          mongoSelectors.push({ [selector.key]: { $in: selector.value } });
+          break;
+        case 'notContainedIn':
+          mongoSelectors.push({ [selector.key]: { $nin: selector.value } });
+          break;
+        case 'mod':
+          mongoSelectors.push({ [selector.key]: { $mod: [selector.divisor, selector.remainder] } });
+          break;
+        case 'regex':
+          mongoSelectors.push({ [selector.key]: { $regex: selector.regex, $options: selector.options } });
+          break;
+        case 'where':
+          mongoSelectors.push({ $where: selector.expressionString });
+          break;
+        default: throw new HotaruError(HotaruError.UNKNOWN_QUERY_SELECTOR, selector.type);
+      }
+    }
 
-  // first(query) {
+    if (mongoSelectors.length > 0) {
+      return { $and: mongoSelectors };
+    }
+    return {};
+  }
 
-  // }
+  static _convertQuerySortOperators(sortOperators) {
+    const mongoSortOperators = [];
 
-  async saveUser(user) {
+    for (const sortOperator of sortOperators) {
+      switch (sortOperator.type) {
+        case 'ascending':
+          mongoSortOperators.push([sortOperator.key, 1]);
+          break;
+        case 'descending':
+          mongoSortOperators.push([sortOperator.key, -1]);
+          break;
+        default: throw new HotaruError(HotaruError.UNKNOWN_SORT_OPERATOR, sortOperator.type);
+      }
+    }
+
+    return mongoSortOperators;
+  }
+
+  static _stripInternalFields(obj) {
+    for (const attribute of Object.keys(obj)) {
+      if (attribute.startsWith('__')) {
+        delete obj[attribute]; // eslint-disable-line
+      }
+    }
+  }
+
+  async find(query) {
+    const collection = await this._getCollection(query._className);
+
+    let objectsPromise = collection
+      .find(MongoAdapter._convertQuerySelectors(query._selectors))
+      .sort(MongoAdapter._convertQuerySortOperators(query._sortOperators));
+    if (query._limit) {
+      objectsPromise = objectsPromise.limit(query._limit);
+    }
+    if (query._skip) {
+      objectsPromise = objectsPromise.skip(query._skip);
+    }
+    objectsPromise = objectsPromise.toArray();
+    const objects = await objectsPromise;
+
+    for (const object of objects) {
+      MongoAdapter._stripInternalFields(object);
+    }
+
+    return objects;
+  }
+
+  async first(query) {
+    query.limit(1);
+    const [object] = await this.find(query);
+    return object;
+  }
+
+  async saveUser(user, _createNewUser = false) {
     const savedUser = await this.saveObject(
       '_User',
       user,
       {
-        savingMode: MongoAdapter.SavingMode.UPDATE_ONLY,
+        savingMode: _createNewUser ? MongoAdapter.SavingMode.CREATE_ONLY : MongoAdapter.SavingMode.UPDATE_ONLY,
         _allowSavingToInternalClasses: true,
       }
     );
     return savedUser;
   }
 
+  // TODO Remove _allowSavingToInternalClasses, add private methods
   async saveObject(className, object, { savingMode = MongoAdapter.SavingMode.UPSERT, _allowSavingToInternalClasses = false } = {}) {
     const [savedObject] = await this.saveAll(className, [object], { savingMode, _allowSavingToInternalClasses });
     return savedObject;
@@ -164,16 +259,17 @@ export default class MongoAdapter {
 
     const hashedPassword = bcrypt.hashSync(password, 10);
 
+
     const newUser = await this.saveUser(
       MongoAdapter._freshUserObject(email, hashedPassword, false),
-      { savingMode: MongoAdapter.SavingMode.CREATE_ONLY }
+      true
     );
 
     return newUser;
   }
 
   async _createGuestUser() {
-    const newGuestUser = await this.saveUser(MongoAdapter._freshUserObject(null, null, true));
+    const newGuestUser = await this.saveUser(MongoAdapter._freshUserObject(null, null, true), true);
 
     return newGuestUser;
   }
