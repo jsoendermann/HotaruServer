@@ -5,7 +5,7 @@
   "dependencies": {
     "bcryptjs": "^2.3.0",
     "body-parser": "^1.15.2",
-    "express": "*",
+    "express": "^4.14.0",
     "lodash": "^4.16.4",
     "mongodb": "^2.2.10"
   },
