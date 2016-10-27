@@ -27,6 +27,8 @@ export default class HotaruError extends Error {
   static get CAN_NOT_CREATE_NEW_OBJECT_IN_UPDATE_ONLY_SAVING_MODE() { return 113; }
   static get UNKNOWN_QUERY_SELECTOR() { return 114; }
   static get UNKNOWN_SORT_OPERATOR() { return 115; }
+  static get CAN_NOT_DELETE_OBJECT_WITHOUT_ID() { return 116; }
+  static get CAN_NOT_DELETE_TWO_OBJECTS_WITH_SAME_ID() { return 117; }
 
   static messageWithCode(code) {
     switch (code) {
@@ -49,6 +51,10 @@ export default class HotaruError extends Error {
         return 'Can not create new objet in UPDATE_ONLY savingMode';
       case HotaruError.UNKNOWN_QUERY_SELECTOR: return 'Unknown query selector';
       case HotaruError.UNKNOWN_SORT_OPERATOR: return 'Unknown sort operator';
+      case HotaruError.CAN_NOT_DELETE_OBJECT_WITHOUT_ID:
+        return 'Can not delete object without _id';
+      case HotaruError.CAN_NOT_DELETE_TWO_OBJECTS_WITH_SAME_ID:
+        return 'Can not delete two objects with the same _id';
       default: return `Error ${code}`;
     }
   }

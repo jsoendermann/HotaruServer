@@ -115,9 +115,9 @@ export default class HotaruServer {
   async logOut(req) {
     const { sessionId } = req.body;
 
-    const result = await this.dbAdapter._endSession(sessionId);
+    const success = await this.dbAdapter._endSession(sessionId);
 
-    if (!result.result.ok) {
+    if (!success) {
       throw new HotaruError(HotaruError.LOGOUT_FAILED);
     }
     return {};

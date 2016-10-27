@@ -29,6 +29,7 @@ describe('HotaruServer', function () {
     const server = HotaruServer.createServer({
       dbAdapter,
       cloudFunctions: [],
+      debug: true,
     });
 
     app.use('/api', server);

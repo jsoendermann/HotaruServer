@@ -3,6 +3,7 @@ import { MongoClient } from 'mongodb';
 import _ from 'lodash';
 import { freshId, validateEmail, isAlphanum } from './utils';
 import HotaruError from './HotaruError';
+import Query from './Query';
 
 
 export default class MongoAdapter {
@@ -130,7 +131,7 @@ export default class MongoAdapter {
     }
   }
 
-  async find(query) {
+  async _internalFind(query) {
     const collection = await this._getCollection(query._className);
 
     let objectsPromise = collection
@@ -143,7 +144,12 @@ export default class MongoAdapter {
       objectsPromise = objectsPromise.skip(query._skip);
     }
     objectsPromise = objectsPromise.toArray();
-    const objects = await objectsPromise;
+
+    return objectsPromise;
+  }
+
+  async find(query) {
+    const objects = await this._internalFind(query);
 
     for (const object of objects) {
       MongoAdapter._stripInternalFields(object);
@@ -152,39 +158,22 @@ export default class MongoAdapter {
     return objects;
   }
 
+  async _internalFirst(query) {
+    query.limit(1);
+    const [object] = await this._internalFind(query);
+    return object || null;
+  }
+
   async first(query) {
     query.limit(1);
     const [object] = await this.find(query);
-    return object;
+    return object || null;
   }
 
-  async saveUser(user, _createNewUser = false) {
-    const savedUser = await this.saveObject(
-      '_User',
-      user,
-      {
-        savingMode: _createNewUser ? MongoAdapter.SavingMode.CREATE_ONLY : MongoAdapter.SavingMode.UPDATE_ONLY,
-        _allowSavingToInternalClasses: true,
-      }
-    );
-    return savedUser;
-  }
-
-  // TODO Remove _allowSavingToInternalClasses, add private methods
-  async saveObject(className, object, { savingMode = MongoAdapter.SavingMode.UPSERT, _allowSavingToInternalClasses = false } = {}) {
-    const [savedObject] = await this.saveAll(className, [object], { savingMode, _allowSavingToInternalClasses });
-    return savedObject;
-  }
-
-  async saveAll(className, objects, { savingMode = MongoAdapter.SavingMode.UPSERT, _allowSavingToInternalClasses = false } = {}) {
+  async _internalSaveAll(className, objects, { savingMode = MongoAdapter.SavingMode.UPSERT } = {}) {
     // Make sure savingMode is a valid value
     if (!Object.values(MongoAdapter.SavingMode).includes(savingMode)) {
       throw new HotaruError(HotaruError.UNKNOWN_SAVING_MODE, String(savingMode));
-    }
-
-    // Only allow saving to classes with non-alphanumeric names if _allowSavingToInternalClasses is true
-    if (!(isAlphanum(className) || _allowSavingToInternalClasses)) {
-      throw new HotaruError(HotaruError.INVALID_CLASS_NAME, className);
     }
 
     // Make sure objects does not contain the same existing object more than once
@@ -228,7 +217,64 @@ export default class MongoAdapter {
 
     await bulkOp.execute();
 
-    return await collection.find({ _id: { $in: ids } }).toArray();
+    return collection.find({ _id: { $in: ids } }).toArray();
+  }
+
+  async saveAll(className, objects, { savingMode = MongoAdapter.SavingMode.UPSERT } = {}) {
+    if (!(isAlphanum(className))) {
+      throw new HotaruError(HotaruError.INVALID_CLASS_NAME, className);
+    }
+
+    return this._internalSaveAll(className, objects, { savingMode });
+  }
+
+  async _internalSaveObject(className, object, { savingMode = MongoAdapter.SavingMode.UPSERT } = {}) {
+    const [savedObject] = await this._internalSaveAll(className, [object], { savingMode });
+    return savedObject;
+  }
+
+  async saveObject(className, object, { savingMode = MongoAdapter.SavingMode.UPSERT } = {}) {
+    const [savedObject] = await this.saveAll(className, [object], { savingMode });
+    return savedObject;
+  }
+
+  async saveUser(user) {
+    return this._internalSaveObject('_User', user, { savingMode: MongoAdapter.SavingMode.UPDATE_ONLY });
+  }
+
+  async deleteObject(className, object) {
+    return this.deleteAll(className, [object]);
+  }
+
+  async _internalDeleteObject(className, object) {
+    return this._internalDeleteAll(className, [object]);
+  }
+
+  async deleteAll(className, objects) {
+    if (!(isAlphanum(className))) {
+      throw new HotaruError(HotaruError.INVALID_CLASS_NAME, className);
+    }
+
+    const result = await this._internalDeleteAll(className, objects);
+    return result.result.ok === 1;
+  }
+
+  async _internalDeleteAll(className, objects) {
+    const ids = [];
+    for (const object of objects) {
+      if (object._id === undefined) {
+        throw new HotaruError(HotaruError.CAN_NOT_DELETE_OBJECT_WITHOUT_ID);
+      }
+      ids.push(object._id);
+    }
+
+    // Make sure objects does not contain the same existing object more than once
+    if (_.uniq(ids).length < ids.length) {
+      throw new HotaruError(HotaruError.CAN_NOT_DELETE_TWO_OBJECTS_WITH_SAME_ID);
+    }
+
+    const collection = await this._getCollection(className);
+    return collection.deleteMany({ _id: { $in: ids } });
   }
 
   static _freshUserObject(email, hashedPassword, isGuest) {
@@ -247,65 +293,74 @@ export default class MongoAdapter {
     if (!validateEmail(email)) {
       throw new HotaruError(HotaruError.INVALID_EMAIL_ADDRESS);
     }
+
     if (!this._validatePassword(password)) {
       throw new HotaruError(HotaruError.INVALID_PASSWORD);
     }
-    const _User = await this._getUserCollection();
 
-    const existingUser = await _User.findOne({ email });
+    const existingUserQuery = new Query('_User');
+    existingUserQuery.equalTo('email', email);
+    const existingUser = await this.first(existingUserQuery);
+
     if (existingUser !== null) {
       throw new HotaruError(HotaruError.USER_ALREADY_EXISTS);
     }
 
     const hashedPassword = bcrypt.hashSync(password, 10);
 
-
-    const newUser = await this.saveUser(
+    const newUser = await this._internalSaveObject(
+      '_User',
       MongoAdapter._freshUserObject(email, hashedPassword, false),
-      true
+      { savingMode: MongoAdapter.SavingMode.CREATE_ONLY }
     );
 
     return newUser;
   }
 
   async _createGuestUser() {
-    const newGuestUser = await this.saveUser(MongoAdapter._freshUserObject(null, null, true), true);
+    const newGuestUser = await this._internalSaveObject(
+      '_User',
+      MongoAdapter._freshUserObject(null, null, true),
+      { savingMode: MongoAdapter.SavingMode.CREATE_ONLY }
+    );
 
     return newGuestUser;
   }
 
   async _createSession(userId) {
-    const newSession = await this.saveObject(
+    const newSession = await this._internalSaveObject(
       '_Session',
       {
         _id: freshId(32),
         userId,
         createdAt: new Date(),
         expiresAt: new Date('Jan 1, 2039'),
-        // installationId
+        // TODO installationId
       },
-      { _allowSavingToInternalClasses: true }
+      { savingMode: MongoAdapter.SavingMode.CREATE_ONLY }
     );
 
     return newSession;
   }
 
   async _getUserWithSessionId(sessionId) {
-    const _Session = await this._getSessionCollection();
-    const session = await _Session.findOne({ _id: sessionId });
+    const sessionQuery = new Query('_Session');
+    sessionQuery.equalTo('_id', sessionId);
+    const session = await this._internalFirst(sessionQuery);
 
     if (session === null) {
       throw new HotaruError(HotaruError.SESSION_NOT_FOUND);
     }
 
-    const _User = await this._getUserCollection();
-    const user = await _User.findOne({ _id: session.userId });
+    const userQuery = new Query('_User');
+    userQuery.equalTo('_id', session.userId);
+    const user = await this._internalFirst(userQuery);
 
     if (user === null) {
       // This is weird, the user must've gotten deleted after the session was created.
       // The best course of action here is probably to delete the session and pretend
       // it didn't exist
-      await _Session.deleteOne({ _id: session._id });
+      await this._internalDeleteObject('_Session', session);
       throw new HotaruError(HotaruError.SESSION_NOT_FOUND);
     }
 
@@ -313,19 +368,21 @@ export default class MongoAdapter {
   }
 
   async _endSession(sessionId) {
-    const _Session = await this._getSessionCollection();
-    const session = await _Session.findOne({ _id: sessionId });
+    const sessionQuery = new Query('_Session');
+    sessionQuery.equalTo('_id', sessionId);
+    const session = await this._internalFirst(sessionQuery);
 
     if (session === null) {
       throw new HotaruError(HotaruError.SESSION_NOT_FOUND);
     }
 
-    return _Session.deleteOne({ _id: session._id });
+    return await this._internalDeleteObject('_Session', session);
   }
 
   async _getUserWithEmail(email) {
-    const _User = await this._getUserCollection();
-    const user = await _User.findOne({ email });
+    const userQuery = new Query('_User');
+    userQuery.equalTo('email', email);
+    const user = await this._internalFirst(userQuery);
 
     if (user === null) {
       throw new HotaruError(HotaruError.NO_USER_WITH_GIVEN_EMAIL_ADDRESS);

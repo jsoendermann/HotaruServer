@@ -31,10 +31,10 @@ describe('MongoAdapter', function () {
     const error = await catchError(this.adapter.saveUser(user));
     expect(error).toMatch(/Can not create new objet in UPDATE_ONLY savingMode/);
 
-    const savedUser1 = await this.adapter.saveObject(
+    const savedUser1 = await this.adapter._internalSaveObject(
       '_User',
       user,
-      { savingMode: MongoAdapter.SavingMode.CREATE_ONLY, _allowSavingToInternalClasses: true }
+      { savingMode: MongoAdapter.SavingMode.CREATE_ONLY }
     );
 
     savedUser1.a = 'b';
@@ -83,8 +83,8 @@ describe('MongoAdapter', function () {
     expect(error).toMatch(/Invalid class name/);
   });
 
-  it('should allow saving to internal classes if _allowSavingToInternalClasses is true', async function () {
-    const object = await this.adapter.saveObject('_Arst', { a: 1 }, { _allowSavingToInternalClasses: true });
+  it('should allow saving to internal classes with _internalSaveObject', async function () {
+    const object = await this.adapter._internalSaveObject('_Arst', { a: 1 });
 
     expect(object._id).toBeAnAlphanumericString(15);
   });
@@ -241,6 +241,34 @@ describe('MongoAdapter', function () {
   it('should not find non-existing users by email', async function () {
     const error = await catchError(this.adapter._getUserWithEmail('email@example.com'));
     expect(error).toMatch(/No user with given email address/);
+  });
+
+  const Query = require('../lib/Query').default;
+
+  it('should delete single objects', async function () {
+    await this.adapter.saveAll('TestClass', [{ a: 1 }, { a: 1 }]);
+
+    const query = new Query('TestClass');
+    const existingObjects1 = await this.adapter.find(query);
+    expect(existingObjects1.length).toEqual(2);
+
+    await this.adapter.deleteObject('TestClass', existingObjects1[0]);
+
+    const existingObjects2 = await this.adapter.find(query);
+    expect(existingObjects2.length).toEqual(1);
+  });
+
+  it('should delete multiple objects', async function () {
+    await this.adapter.saveAll('TestClass', [{ a: 1 }, { a: 1 }, { a: 1 }]);
+
+    const query = new Query('TestClass');
+    const existingObjects1 = await this.adapter.find(query);
+    expect(existingObjects1.length).toEqual(3);
+
+    await this.adapter.deleteAll('TestClass', existingObjects1.slice(0, 2));
+
+    const existingObjects2 = await this.adapter.find(query);
+    expect(existingObjects2.length).toEqual(1);
   });
 });
 
@@ -412,5 +440,22 @@ describe('MongoAdapter (querying)', function () {
     expect(user._id).toBeAnAlphanumericString(15);
     expect(user.email).toBeNull();
     expect(user.__hashedPassword).toBeUndefined();
+  });
+
+  it('should not strip internal fields when using _internalFind', async function () {
+    await this.adapter._createGuestUser();
+    const user = await this.adapter._internalFirst(new Query('_User'));
+
+    expect(user._id).toBeAnAlphanumericString(15);
+    expect(user.email).toBeNull();
+    expect(user.__hashedPassword).toBeNull();
+  });
+
+  it('should return null when calling first with a query that returns no result', async function () {
+    const query = new Query('TestClass');
+    query.equalTo('a', 99);
+    const object = await this.adapter.first(query);
+
+    expect(object).toBeNull();
   });
 });
