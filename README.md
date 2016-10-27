@@ -5,7 +5,6 @@ Hotaru is currently under heavy development and will eventually be a backend for
 Hotaru is built around cloud functions which are called on the client, execute on the server and return on the client, similar to Parse's cloud code.
 
 ### TODO (before 1.0)
-- Cloud functions
 - Schema
 - User sync
 
