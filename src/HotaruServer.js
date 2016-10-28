@@ -27,6 +27,18 @@ function routeHandlerWrapper(routeHandler, debug = false) {
   };
 }
 
+function loggedInRouteHandlerWrapper(loggedInRouteHandler) {
+  return async (req) => {
+    const { sessionId } = req.body;
+
+    if (sessionId === undefined) {
+      throw new HotaruError(HotaruError.NOT_LOGGED_IN);
+    }
+
+    return await loggedInRouteHandler(req, sessionId);
+  };
+}
+
 export default class HotaruServer {
 
   constructor({ dbAdapter, cloudFunctions, debug = false }) {
@@ -42,18 +54,23 @@ export default class HotaruServer {
     const router = Router({ caseSensitive: true }); // eslint-disable-line new-cap
     router.use(bodyParser.json());
 
-    router.post('/_logInAsGuest', (req, res) => routeHandlerWrapper(server.logInAsGuest, server.debug)(req, res));
-    router.post('/_signUp', (req, res) => routeHandlerWrapper(server.signUp, server.debug)(req, res));
-    router.post('/_convertGuestUser', (req, res) => routeHandlerWrapper(server.convertGuestUser, server.debug)(req, res));
-    router.post('/_logIn', (req, res) => routeHandlerWrapper(server.logIn, server.debug)(req, res));
-    router.post('/_logOut', (req, res) => routeHandlerWrapper(server.logOut, server.debug)(req, res));
+    router.post('/_logInAsGuest', (req, res) =>
+      routeHandlerWrapper(server.logInAsGuest, server.debug)(req, res));
+    router.post('/_signUp', (req, res) =>
+      routeHandlerWrapper(server.signUp, server.debug)(req, res));
+    router.post('/_convertGuestUser', (req, res) =>
+      routeHandlerWrapper(loggedInRouteHandlerWrapper(server.convertGuestUser), server.debug)(req, res));
+    router.post('/_logIn', (req, res) =>
+      routeHandlerWrapper(server.logIn, server.debug)(req, res));
+    router.post('/_logOut', (req, res) =>
+    routeHandlerWrapper(loggedInRouteHandlerWrapper(server.logOut), server.debug)(req, res));
 
     cloudFunctions.forEach(({ name }) => {
       if (!isAlphanum(name)) {
         throw new HotaruError(HotaruError.CLOUD_FUNCTION_NAMES_MUST_BE_ALPHANUMERIC);
       }
 
-      router.post(`/${name}`, (req, res) => routeHandlerWrapper(server.runCloudFunction(name), server.debug)(req, res));
+      router.post(`/${name}`, (req, res) => routeHandlerWrapper(loggedInRouteHandlerWrapper(server.runCloudFunction(name)), server.debug)(req, res));
     });
 
     return router;
@@ -77,8 +94,8 @@ export default class HotaruServer {
     return { sessionId: newSession._id };
   }
 
-  async convertGuestUser(req) {
-    const { email, password, sessionId } = req.body;
+  async convertGuestUser(req, sessionId) {
+    const { email, password } = req.body;
 
     const user = await this.dbAdapter._getUserWithSessionId(sessionId);
 
@@ -109,9 +126,7 @@ export default class HotaruServer {
     return { sessionId: newSession._id };
   }
 
-  async logOut(req) {
-    const { sessionId } = req.body;
-
+  async logOut(req, sessionId) {
     const success = await this.dbAdapter._endSession(sessionId);
 
     if (!success) {
@@ -121,12 +136,8 @@ export default class HotaruServer {
   }
 
   runCloudFunction(cloudFunctionName) {
-    return async (req) => {
-      const { sessionId, params, installationDetails } = req.body;
-
-      if (sessionId === undefined) {
-        throw new HotaruError(HotaruError.NOT_LOGGED_IN);
-      }
+    return async (req, sessionId) => {
+      const { params, installationDetails } = req.body;
 
       const user = await this.dbAdapter._getUserWithSessionId(sessionId);
       this.dbAdapter.constructor._stripInternalFields(user);
