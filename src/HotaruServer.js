@@ -63,7 +63,7 @@ export default class HotaruServer {
     router.post('/_logIn', (req, res) =>
       routeHandlerWrapper(server.logIn, server.debug)(req, res));
     router.post('/_logOut', (req, res) =>
-    routeHandlerWrapper(loggedInRouteHandlerWrapper(server.logOut), server.debug)(req, res));
+      routeHandlerWrapper(loggedInRouteHandlerWrapper(server.logOut), server.debug)(req, res));
 
     cloudFunctions.forEach(({ name }) => {
       if (!isAlphanum(name)) {
