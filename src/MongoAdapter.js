@@ -278,12 +278,11 @@ export default class MongoAdapter {
     return result.result.ok === 1;
   }
 
-  static _freshUserObject(email, hashedPassword, isGuest) {
+  static _freshUserObject(email, hashedPassword) {
     const now = new Date();
     return {
       email,
       __hashedPassword: hashedPassword,
-      __isGuest: isGuest,
       createdAt: now,
       updatedAt: now,
     };

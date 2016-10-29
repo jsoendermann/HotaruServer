@@ -103,14 +103,13 @@ export default class HotaruServer {
 
     const internalUser = await this.dbAdapter._getUserWithSessionId(sessionId);
 
-    if (!internalUser.__isGuest) {
+    if (internalUser.email !== null) {
       throw new HotaruError(HotaruError.CAN_NOT_CONVERT_NON_GUEST_USER);
     }
 
     internalUser.email = email;
     // TODO extract password management into a separate module
     internalUser.__hashedPassword = bcrypt.hashSync(password, 10);
-    internalUser.__isGuest = false;
 
     const savedInternalUser = await this.dbAdapter.saveUser(internalUser);
     const savedUser = stripInternalFields(savedInternalUser);

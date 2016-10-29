@@ -21,7 +21,7 @@ describe('MongoAdapter (saving)', function () {
   });
 
   it('should save users', async function () {
-    const user = { _id: 'testuser', __isGuest: true, createdAt: new Date(), updatedAt: new Date() };
+    const user = { _id: 'testuser', createdAt: new Date(), updatedAt: new Date() };
 
     const error = await catchError(this.adapter.saveUser(user));
     expect(error).toMatch(/Can not create new objet in UPDATE_ONLY savingMode/);
@@ -150,7 +150,7 @@ describe('MongoAdapter (saving)', function () {
   });
 
   it('should not reveal internal fields when saving users', async function () {
-    const user = { __isGuest: true, createdAt: new Date(), updatedAt: new Date() };
+    const user = { __bla: true, createdAt: new Date(), updatedAt: new Date() };
     const savedUser1 = await this.adapter._internalSaveObject(
       '_User',
       user,
@@ -160,7 +160,7 @@ describe('MongoAdapter (saving)', function () {
     savedUser1.a = 1;
 
     const savedUser2 = await this.adapter.saveUser(savedUser1);
-    expect(savedUser2.__isGuest).toBeUndefined();
+    expect(savedUser2.__bla).toBeUndefined();
   });
 
   it('should not strip internal fields when saving with an _internal method', async function () {

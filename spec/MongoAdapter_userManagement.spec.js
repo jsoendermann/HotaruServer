@@ -29,7 +29,6 @@ describe('MongoAdapter (user management)', function () {
     expect(allExistingUsers[0]._id).toEqual(user._id);
     expect(allExistingUsers[0].email).toEqual('email@example.com');
     expect(allExistingUsers[0].__hashedPassword).toBeTruthy();
-    expect(allExistingUsers[0].__isGuest).toBeFalsy();
     expect(allExistingUsers[0].createdAt.getTime() / 10000).toBeCloseTo(new Date().getTime() / 10000, 1);
     expect(allExistingUsers[0].updatedAt.getTime() / 10000).toBeCloseTo(new Date().getTime() / 10000, 1);
   });
@@ -62,7 +61,6 @@ describe('MongoAdapter (user management)', function () {
     expect(guestUser._id).toBeTruthy();
     expect(guestUser.email).toBeNull();
     expect(guestUser.__hashedPassword).toBeNull();
-    expect(guestUser.__isGuest).toBeTruthy();
     expect(guestUser.createdAt.getTime() / 10000).toBeCloseTo(new Date().getTime() / 10000, 1);
     expect(guestUser.updatedAt.getTime() / 10000).toBeCloseTo(new Date().getTime() / 10000, 1);
   });
