@@ -1,8 +1,10 @@
-/* global describe, it, expect, beforeAll */
+/* global jasmine, describe, it, expect, beforeAll */
 /* eslint prefer-arrow-callback:0, func-names:0, global-require:0, import/no-extraneous-dependencies:0 */
 
 import axios from 'axios';
 import install from 'jasmine-es6';
+
+import toBeAnAlphanumericString from './matchers/toBeAnAlphanumericString';
 
 install();
 
@@ -18,6 +20,8 @@ describe('HotaruServer', function () {
   const HotaruError = require('../lib/HotaruError').default;
 
   beforeAll(async function () {
+    jasmine.addMatchers({ toBeAnAlphanumericString });
+
     const app = express();
 
     const dbAdapter = new MongoAdapter({
@@ -85,6 +89,8 @@ describe('HotaruServer', function () {
 
     expect(response.data.status).toEqual('ok');
     expect(response.data.result.sessionId).toBeTruthy();
+    expect(response.data.result.user._id).toBeAnAlphanumericString(15);
+    expect(response.data.result.user.__hashedPassword).toBeUndefined();
   });
 
   it('should sign up new users', async function () {
@@ -95,6 +101,8 @@ describe('HotaruServer', function () {
 
     expect(response.data.status).toEqual('ok');
     expect(response.data.result.sessionId).toBeTruthy();
+    expect(response.data.result.user._id).toBeAnAlphanumericString(15);
+    expect(response.data.result.user.__hashedPassword).toBeUndefined();
   });
 
   it('should convert guest users', async function () {
@@ -109,6 +117,8 @@ describe('HotaruServer', function () {
     });
 
     expect(response2.data.status).toEqual('ok');
+    expect(response2.data.result.user._id).toBeAnAlphanumericString(15);
+    expect(response2.data.result.user.__hashedPassword).toBeUndefined();
   });
 
   it('should not handle missing sessionIds', async function () {
@@ -162,6 +172,8 @@ describe('HotaruServer', function () {
 
     expect(response3.data.status).toEqual('ok');
     expect(response3.data.result.sessionId).toBeTruthy();
+    expect(response3.data.result.user._id).toBeAnAlphanumericString(15);
+    expect(response3.data.result.user.__hashedPassword).toBeUndefined();
   });
 
   it('should process parameters when calling cloud functions', async function () {

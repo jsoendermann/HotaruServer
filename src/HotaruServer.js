@@ -77,53 +77,59 @@ export default class HotaruServer {
   }
 
   async logInAsGuest(_req) {
-    const newUser = await this.dbAdapter._createGuestUser();
+    const newInternalUser = await this.dbAdapter._createGuestUser();
 
     // TODO If creating the session fails, we should delete the user and return an error
-    const newSession = await this.dbAdapter._createSession(newUser._id);
-    return { sessionId: newSession._id };
+    const newSession = await this.dbAdapter._createSession(newInternalUser._id);
+
+    const newUser = stripInternalFields(newInternalUser);
+    return { sessionId: newSession._id, user: newUser };
   }
 
   async signUp(req) {
     const { email, password } = req.body;
 
-    const newUser = await this.dbAdapter._createUser(email, password);
+    const newInternalUser = await this.dbAdapter._createUser(email, password);
 
     // TODO If creating the session fails, we should delete the user and return an error
-    const newSession = await this.dbAdapter._createSession(newUser._id);
-    return { sessionId: newSession._id };
+    const newSession = await this.dbAdapter._createSession(newInternalUser._id);
+
+    const newUser = stripInternalFields(newInternalUser);
+    return { sessionId: newSession._id, user: newUser };
   }
 
   async convertGuestUser(req, sessionId) {
     const { email, password } = req.body;
 
-    const user = await this.dbAdapter._getUserWithSessionId(sessionId);
+    const internalUser = await this.dbAdapter._getUserWithSessionId(sessionId);
 
-    if (!user.__isGuest) {
+    if (!internalUser.__isGuest) {
       throw new HotaruError(HotaruError.CAN_NOT_CONVERT_NON_GUEST_USER);
     }
 
-    user.email = email;
+    internalUser.email = email;
     // TODO extract password management into a separate module
-    user.__hashedPassword = bcrypt.hashSync(password, 10);
-    user.__isGuest = false;
+    internalUser.__hashedPassword = bcrypt.hashSync(password, 10);
+    internalUser.__isGuest = false;
 
-    await this.dbAdapter.saveUser(user);
+    const savedInternalUser = await this.dbAdapter.saveUser(internalUser);
+    const savedUser = stripInternalFields(savedInternalUser);
 
-    return {};
+    return { user: savedUser };
   }
 
   async logIn(req) {
     const { email, password } = req.body;
 
-    const user = await this.dbAdapter._getUserWithEmail(email);
-    if (!bcrypt.compareSync(password, user.__hashedPassword)) {
+    const internalUser = await this.dbAdapter._getUserWithEmail(email);
+    if (!bcrypt.compareSync(password, internalUser.__hashedPassword)) {
       throw new HotaruError(HotaruError.INCORRECT_PASSWORD);
     }
 
-    const newSession = await this.dbAdapter._createSession(user._id);
+    const newSession = await this.dbAdapter._createSession(internalUser._id);
+    const user = stripInternalFields(internalUser);
 
-    return { sessionId: newSession._id };
+    return { sessionId: newSession._id, user };
   }
 
   async logOut(req, sessionId) {
