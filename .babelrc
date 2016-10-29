@@ -1,4 +1,11 @@
 {
   "presets": ["es2015-node"],
-  "plugins": ["transform-async-to-generator"]
+  "plugins": [
+    "transform-async-to-generator", 
+    [
+      "babel-plugin-transform-builtin-extend", {
+            "globals": ["Error"]
+        }
+    ]
+  ]
 }

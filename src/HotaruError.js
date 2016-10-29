@@ -1,14 +1,16 @@
 export default class HotaruError extends Error {
   constructor(code, description) {
-    super();
-
-    this.code = code;
+    let message = '';
 
     if (description) {
-      this.message = `${HotaruError.messageWithCode(code)} (${description})`;
+      message = `${HotaruError.messageWithCode(code)} (${description})`;
     } else {
-      this.message = HotaruError.messageWithCode(code);
+      message = HotaruError.messageWithCode(code);
     }
+
+    super(message);
+
+    this.code = code;
   }
 
   static get USER_ALREADY_EXISTS() { return 100; }

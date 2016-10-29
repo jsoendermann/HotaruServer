@@ -3,7 +3,7 @@ import bodyParser from 'body-parser';
 import bcrypt from 'bcryptjs';
 import _ from 'lodash';
 import HotaruError from './HotaruError';
-import { isAlphanum } from './utils';
+import { isAlphanum, stripInternalFields } from './utils';
 
 // This should eventually be a decorator
 function routeHandlerWrapper(routeHandler, debug = false) {
@@ -139,8 +139,8 @@ export default class HotaruServer {
     return async (req, sessionId) => {
       const { params, installationDetails } = req.body;
 
-      const user = await this.dbAdapter._getUserWithSessionId(sessionId);
-      this.dbAdapter.constructor._stripInternalFields(user);
+      const internalUser = await this.dbAdapter._getUserWithSessionId(sessionId);
+      const user = stripInternalFields(internalUser);
 
       const cloudFunction = this.cloudFunctions.find(({ name }) => cloudFunctionName === name).func;
       return await cloudFunction(this.dbAdapter, user, params, installationDetails);

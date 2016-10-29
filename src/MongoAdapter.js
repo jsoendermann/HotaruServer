@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { MongoClient } from 'mongodb';
 import _ from 'lodash';
-import { freshId, validateEmail, isAlphanum } from './utils';
+import { freshId, validateEmail, isAlphanum, stripInternalFields } from './utils';
 import HotaruError from './HotaruError';
 import Query from './Query';
 
@@ -123,14 +123,6 @@ export default class MongoAdapter {
     return mongoSortOperators;
   }
 
-  static _stripInternalFields(obj) {
-    for (const attribute of Object.keys(obj)) {
-      if (attribute.startsWith('__')) {
-        delete obj[attribute]; // eslint-disable-line
-      }
-    }
-  }
-
   async _internalFind(query) {
     const collection = await this._getCollection(query._className);
 
@@ -150,12 +142,7 @@ export default class MongoAdapter {
 
   async find(query) {
     const objects = await this._internalFind(query);
-
-    for (const object of objects) {
-      MongoAdapter._stripInternalFields(object);
-    }
-
-    return objects;
+    return objects.map(obj => stripInternalFields(obj));
   }
 
   async _internalFirst(query) {
@@ -177,47 +164,59 @@ export default class MongoAdapter {
     }
 
     // Make sure objects does not contain the same existing object more than once
-    const existingObjects = objects.filter(obj => obj._id !== undefined);
-    if (_.uniq(existingObjects.map(o => o._id)).length < existingObjects.length) {
+    const oldIds = objects.map(obj => obj._id).filter(id => id !== undefined);
+    if (_.uniq(oldIds).length < oldIds.length) {
       throw new HotaruError(HotaruError.CAN_NOT_SAVE_TWO_OBJECTS_WITH_SAME_ID);
     }
 
+    // If we are in UPDATE_ONLY mode, every object has to have an _id
     if (savingMode === MongoAdapter.SavingMode.UPDATE_ONLY &&
       objects.includes(obj => obj._id === undefined)) {
       throw new HotaruError(HotaruError.OBJECT_WITHOUT_ID_IN_UPDATE_ONLY_SAVING_MODE);
     }
 
+    const collection = await this._getCollection(className);
+    const existingObjects = await collection.find({ _id: { $in: oldIds } }).toArray();
+
+    if (savingMode === MongoAdapter.SavingMode.CREATE_ONLY && existingObjects.length > 0) {
+      throw new HotaruError(HotaruError.CAN_NOT_OVERWRITE_OBJECT_IN_CREATE_ONLY_SAVING_MODE);
+    } else if (savingMode === MongoAdapter.SavingMode.UPDATE_ONLY && existingObjects.length !== objects.length) {
+      throw new HotaruError(HotaruError.CAN_NOT_CREATE_NEW_OBJECT_IN_UPDATE_ONLY_SAVING_MODE);
+    }
+
+    const oldAndNewIds = [];
+    const objectCopies = objects.map(o => Object.assign({}, o));
     const now = new Date();
-    for (const obj of objects) {
+    for (const obj of objectCopies) {
       // Create fresh _ids for new objects which don't have an _id yet. Note: We allow objects with _id !== undefined
       // in CREATE_ONLY savingMode because the user might want to set the _id herself to something other than freshId() on new objects
       obj._id = obj._id || freshId();
       obj.createdAt = obj.createdAt || now;
       obj.updatedAt = now;
-    }
 
-    const collection = await this._getCollection(className);
+      oldAndNewIds.push(obj._id);
 
-    const ids = objects.map(obj => obj._id);
-    if (savingMode === MongoAdapter.SavingMode.CREATE_ONLY || savingMode === MongoAdapter.SavingMode.UPDATE_ONLY) {
-      const existingObjectsWithIdInIds = await collection.find({ _id: { $in: ids } }).toArray();
-
-      if (savingMode === MongoAdapter.SavingMode.CREATE_ONLY && existingObjectsWithIdInIds.length > 0) {
-        throw new HotaruError(HotaruError.CAN_NOT_OVERWRITE_OBJECT_IN_CREATE_ONLY_SAVING_MODE);
-      } else if (savingMode === MongoAdapter.SavingMode.UPDATE_ONLY && existingObjectsWithIdInIds.length !== objects.length) {
-        throw new HotaruError(HotaruError.CAN_NOT_CREATE_NEW_OBJECT_IN_UPDATE_ONLY_SAVING_MODE);
+      // Copy over internal fields from existing objects if they weren't set so that they don't
+      // get ovewritten with undefined
+      const existingObject = existingObjects.find(exObj => exObj._id === obj._id);
+      if (existingObject !== undefined) {
+        for (const key of Object.keys(existingObject)) {
+          if (key.startsWith('__') && obj[key] === undefined) {
+            obj[key] = existingObject[key];
+          }
+        }
       }
     }
 
     const bulkOp = collection.initializeUnorderedBulkOp();
 
-    objects.forEach(obj => {
+    objectCopies.forEach(obj => {
       bulkOp.find({ _id: obj._id }).upsert().update({ $set: obj });
     });
 
     await bulkOp.execute();
 
-    return collection.find({ _id: { $in: ids } }).toArray();
+    return collection.find({ _id: { $in: oldAndNewIds } }).toArray();
   }
 
   async saveAll(className, objects, { savingMode = MongoAdapter.SavingMode.UPSERT } = {}) {
@@ -225,7 +224,8 @@ export default class MongoAdapter {
       throw new HotaruError(HotaruError.INVALID_CLASS_NAME, className);
     }
 
-    return this._internalSaveAll(className, objects, { savingMode });
+    const savedObjects = await this._internalSaveAll(className, objects, { savingMode });
+    return savedObjects.map(obj => stripInternalFields(obj));
   }
 
   async _internalSaveObject(className, object, { savingMode = MongoAdapter.SavingMode.UPSERT } = {}) {
@@ -239,7 +239,8 @@ export default class MongoAdapter {
   }
 
   async saveUser(user) {
-    return this._internalSaveObject('_User', user, { savingMode: MongoAdapter.SavingMode.UPDATE_ONLY });
+    const savedUser = await this._internalSaveObject('_User', user, { savingMode: MongoAdapter.SavingMode.UPDATE_ONLY });
+    return stripInternalFields(savedUser);
   }
 
   async deleteObject(className, object) {
@@ -255,8 +256,7 @@ export default class MongoAdapter {
       throw new HotaruError(HotaruError.INVALID_CLASS_NAME, className);
     }
 
-    const result = await this._internalDeleteAll(className, objects);
-    return result.result.ok === 1;
+    return this._internalDeleteAll(className, objects);
   }
 
   async _internalDeleteAll(className, objects) {
@@ -274,13 +274,13 @@ export default class MongoAdapter {
     }
 
     const collection = await this._getCollection(className);
-    return collection.deleteMany({ _id: { $in: ids } });
+    const result = await collection.deleteMany({ _id: { $in: ids } });
+    return result.result.ok === 1;
   }
 
   static _freshUserObject(email, hashedPassword, isGuest) {
     const now = new Date();
     return {
-      _id: freshId(),
       email,
       __hashedPassword: hashedPassword,
       __isGuest: isGuest,

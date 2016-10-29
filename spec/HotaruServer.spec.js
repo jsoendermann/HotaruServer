@@ -15,6 +15,7 @@ describe('HotaruServer', function () {
   const HotaruServer = require('../lib/HotaruServer').default;
   const MongoAdapter = require('../lib/MongoAdapter').default;
   const Query = require('../lib/Query').default;
+  const HotaruError = require('../lib/HotaruError').default;
 
   beforeAll(async function () {
     const app = express();
@@ -32,23 +33,18 @@ describe('HotaruServer', function () {
       cloudFunctions: [
         {
           name: 'returnParams',
-          func: async function (dbAdapter, user, params, installationDetails) {
-            return params;
-          },
+          func: async (_dbAdapter, user, params, _installationDetails) => params,
         },
         {
           name: 'returnUserEmailButNotPassword',
-          func: async function (dbAdapter, user, params, installationDetails) {
-            return {
-              email: user.email,
-              password: user.__hashedPassword,
-            };
-          },
+          func: async (_dbAdapter, user, _params, _installationDetails) => ({
+            email: user.email,
+            password: user.__hashedPassword,
+          }),
         },
-
         {
           name: 'createObjects',
-          func: async function (dbAdapter, user, params, installationDetails) {
+          func: async (dbAdapter_, _user, _params, _installationDetails) => {
             const objects = [
               { _id: 'obj1', a: 1 },
               { _id: 'obj2', a: 2 },
@@ -56,24 +52,24 @@ describe('HotaruServer', function () {
               { a: 4 },
             ];
 
-            await dbAdapter.saveAll('TestClass', objects);
+            await dbAdapter_.saveAll('TestClass', objects);
           },
         },
         {
           name: 'returnObjects',
-          func: async function (dbAdapter, user, params, installationDetails) {
+          func: async (dbAdapter_, _user, _params, _installationDetails) => {
             const query = new Query('TestClass');
-            return await dbAdapter.find(query);
+            return await dbAdapter_.find(query);
           },
         },
         {
           name: 'deleteSomeObjects',
-          func: async function (dbAdapter, user, params, installationDetails) {
+          func: async (dbAdapter_, _user, _params, _installationDetails) => {
             const query = new Query('TestClass');
             query.lessThanOrEqual('a', 2);
-            const objects = await dbAdapter.find(query);
+            const objects = await dbAdapter_.find(query);
 
-            return await dbAdapter.deleteAll('TestClass', objects);
+            return await dbAdapter_.deleteAll('TestClass', objects);
           },
         },
       ],
@@ -113,6 +109,36 @@ describe('HotaruServer', function () {
     });
 
     expect(response2.data.status).toEqual('ok');
+  });
+
+  it('should not handle missing sessionIds', async function () {
+    const response1 = await axios.post(`http://localhost:${PORT}/api/_logInAsGuest`, {});
+
+    expect(response1.data.status).toEqual('ok');
+
+    const response2 = await axios.post(`http://localhost:${PORT}/api/_convertGuestUser`, {
+      email: 'email2@example.com',
+      password: 'password',
+      // sessionId: response1.data.result.sessionId,
+    });
+
+    expect(response2.data.status).toEqual('error');
+    expect(response2.data.code).toEqual(HotaruError.NOT_LOGGED_IN);
+  });
+
+  it('should handle non-existing sessionIds', async function () {
+    const response1 = await axios.post(`http://localhost:${PORT}/api/_logInAsGuest`, {});
+
+    expect(response1.data.status).toEqual('ok');
+
+    const response2 = await axios.post(`http://localhost:${PORT}/api/_convertGuestUser`, {
+      email: 'email2@example.com',
+      password: 'password',
+      sessionId: 'I DONT EXIST',
+    });
+
+    expect(response2.data.status).toEqual('error');
+    expect(response2.data.code).toEqual(HotaruError.SESSION_NOT_FOUND);
   });
 
   it('should log out and log in users', async function () {
