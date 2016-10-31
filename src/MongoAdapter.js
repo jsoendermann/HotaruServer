@@ -15,9 +15,8 @@ export default class MongoAdapter {
     };
   }
 
-  constructor({ uri, schema, validatePassword = p => p.length > 6 }) {
+  constructor({ uri, validatePassword = p => p.length > 6 }) {
     this._uri = uri;
-    this._schema = schema;
     this._validatePassword = validatePassword;
   }
 
