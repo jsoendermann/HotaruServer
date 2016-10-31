@@ -5,6 +5,8 @@ import _ from 'lodash';
 import HotaruError from './HotaruError';
 import { isAlphanum, stripInternalFields } from './utils';
 
+const PACKAGE_VERSION = require(`${__dirname}/../package.json`).version; // eslint-disable-line
+
 // This should eventually be a decorator
 function routeHandlerWrapper(routeHandler, debug = false) {
   return async (req, res) => {
@@ -12,7 +14,7 @@ function routeHandlerWrapper(routeHandler, debug = false) {
 
     try {
       const result = await routeHandler(req);
-      res.send(JSON.stringify({ status: 'ok', result }));
+      res.send(JSON.stringify({ status: 'ok', result, serverVersion: PACKAGE_VERSION }));
     } catch (error) {
       let response;
       if (error instanceof HotaruError) {

@@ -6,11 +6,14 @@ import install from 'jasmine-es6';
 
 import toBeAnAlphanumericString from './matchers/toBeAnAlphanumericString';
 
+const PACKAGE_VERSION = require(`${__dirname}/../package.json`).version; // eslint-disable-line
+
 install();
 
 
 const DB_URI = 'mongodb://localhost:27017/hotaru_test';
 const PORT = 3030;
+
 
 describe('HotaruServer', function () {
   const express = require('express');
@@ -91,6 +94,7 @@ describe('HotaruServer', function () {
     expect(response.data.result.sessionId).toBeTruthy();
     expect(response.data.result.user._id).toBeAnAlphanumericString(15);
     expect(response.data.result.user.__hashedPassword).toBeUndefined();
+    expect(response.data.serverVersion).toEqual(PACKAGE_VERSION);
   });
 
   it('should sign up new users', async function () {
