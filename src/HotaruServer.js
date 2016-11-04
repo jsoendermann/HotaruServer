@@ -2,10 +2,14 @@ import { Router } from 'express';
 import bodyParser from 'body-parser';
 import bcrypt from 'bcryptjs';
 import _ from 'lodash';
+import defaultdict from 'defaultdict-proxy';
+import Semaphore from 'semaphore-async-await';
 import HotaruError from './HotaruError';
 import { isAlphanum, stripInternalFields } from './utils';
 
 const PACKAGE_VERSION = require(`${__dirname}/../package.json`).version; // eslint-disable-line
+
+const locks = defaultdict(() => new Semaphore(1));
 
 // This should eventually be a decorator
 function routeHandlerWrapper(routeHandler, debug = false) {
@@ -37,7 +41,14 @@ function loggedInRouteHandlerWrapper(loggedInRouteHandler) {
       throw new HotaruError(HotaruError.NOT_LOGGED_IN);
     }
 
-    return await loggedInRouteHandler(req, sessionId);
+    let result;
+    await locks[sessionId].wait();
+    try {
+      result = await loggedInRouteHandler(req, sessionId);
+    } finally {
+      locks[sessionId].signal();
+    }
+    return result;
   };
 }
 

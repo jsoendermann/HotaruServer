@@ -1143,6 +1143,10 @@ deep-is@~0.1.3:
   version "0.1.3"
   resolved "https://registry.yarnpkg.com/deep-is/-/deep-is-0.1.3.tgz#b369d6fb5dbc13eecf524f91b070feedc357cf34"
 
+defaultdict-proxy:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/defaultdict-proxy/-/defaultdict-proxy-1.0.0.tgz#b16e7cf2519d0bdf9ad4e1b7f098fff18425c810"
+
 del@^2.0.2:
   version "2.2.2"
   resolved "https://registry.yarnpkg.com/del/-/del-2.2.2.tgz#c12c981d067846c84bcaf862cff930d907ffd1a8"
@@ -2772,6 +2776,10 @@ run-async@^0.1.0:
 rx-lite@^3.1.2:
   version "3.1.2"
   resolved "https://registry.yarnpkg.com/rx-lite/-/rx-lite-3.1.2.tgz#19ce502ca572665f3b647b10939f97fd1615f102"
+
+semaphore-async-await:
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/semaphore-async-await/-/semaphore-async-await-1.0.2.tgz#660c2ff57b0ce346d2329d4cf8dca18a140ab094"
 
 semver-regex@^1.0.0:
   version "1.0.0"

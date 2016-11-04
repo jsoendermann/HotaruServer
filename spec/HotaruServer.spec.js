@@ -5,6 +5,7 @@ import axios from 'axios';
 import install from 'jasmine-es6';
 
 import toBeAnAlphanumericString from './matchers/toBeAnAlphanumericString';
+import wait from './helpers/wait';
 
 const PACKAGE_VERSION = require(`${__dirname}/../package.json`).version; // eslint-disable-line
 
@@ -77,6 +78,19 @@ describe('HotaruServer', function () {
             const objects = await dbAdapter_.find(query);
 
             return await dbAdapter_.deleteAll('TestClass', objects);
+          },
+        },
+        {
+          name: 'synchronizationTest',
+          func: async (dbAdapter_, user, _params, _installationDetails) => {
+            user.syncVar = user.syncVar || 0;
+
+            const tmp = user.syncVar;
+            await wait(1000);
+            user.syncVar = tmp + 1;
+
+            await dbAdapter_.saveUser(user);
+            return user.syncVar;
           },
         },
       ],
@@ -229,5 +243,19 @@ describe('HotaruServer', function () {
       sessionId: response1.data.result.sessionId,
     });
     expect(response5.data.result.map(o => o.a)).toEqual([3, 4]);
+  });
+
+  it('should synchronize user-specific endpoints', async function () {
+    const response1 = await axios.post(`http://localhost:${PORT}/api/_logInAsGuest`, {});
+    expect(response1.data.status).toEqual('ok');
+
+    axios.post(`http://localhost:${PORT}/api/synchronizationTest`, {
+      sessionId: response1.data.result.sessionId,
+    });
+    const response2 = await axios.post(`http://localhost:${PORT}/api/synchronizationTest`, {
+      sessionId: response1.data.result.sessionId,
+    });
+
+    expect(response2.data.result).toEqual(2);
   });
 });
