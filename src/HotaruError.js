@@ -33,6 +33,7 @@ export default class HotaruError extends Error {
   static get CAN_NOT_DELETE_TWO_OBJECTS_WITH_SAME_ID() { return 117; }
   static get CLOUD_FUNCTION_NAMES_MUST_BE_ALPHANUMERIC() { return 118; }
   static get NOT_LOGGED_IN() { return 119; }
+  static get INVALID_FIELD_NAME() { return 120; }
 
   static messageWithCode(code) {
     switch (code) {
@@ -62,6 +63,7 @@ export default class HotaruError extends Error {
       case HotaruError.CLOUD_FUNCTION_NAMES_MUST_BE_ALPHANUMERIC:
         return 'Cloud function names must be alphanumeric';
       case HotaruError.NOT_LOGGED_IN: return 'Not logged in';
+      case HotaruError.INVALID_FIELD_NAME: return 'Invalid field name';
       default: return `Error ${code}`;
     }
   }

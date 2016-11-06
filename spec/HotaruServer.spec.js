@@ -45,13 +45,6 @@ describe('HotaruServer', function () {
           func: async (_dbAdapter, user, params, _installationDetails) => params,
         },
         {
-          name: 'returnUserEmailButNotPassword',
-          func: async (_dbAdapter, user, _params, _installationDetails) => ({
-            email: user.email,
-            password: user.__hashedPassword,
-          }),
-        },
-        {
           name: 'createObjects',
           func: async (dbAdapter_, _user, _params, _installationDetails) => {
             const objects = [
@@ -84,14 +77,14 @@ describe('HotaruServer', function () {
         {
           name: 'synchronizationTest',
           func: async (dbAdapter_, user, _params, _installationDetails) => {
-            user.syncVar = user.syncVar || 0;
+            user.set('syncVar', user.get('syncVar') || 0);
 
-            const tmp = user.syncVar;
+            const tmp = user.get('syncVar');
             await wait(500);
-            user.syncVar = tmp + 1;
+            user.set('syncVar', tmp + 1);
 
             await dbAdapter_.saveUser(user);
-            return user.syncVar;
+            return user.get('syncVar');
           },
         },
       ],
@@ -296,20 +289,6 @@ describe('HotaruServer', function () {
     });
 
     expect(response2.data.result).toEqual({ a: 1 });
-  });
-
-  it('should find the user when calling cloud functions', async function () {
-    const response1 = await axios.post(`http://localhost:${PORT}/api/_signUp`, {
-      email: 'email4@example.com',
-      password: 'password',
-    });
-
-    const response2 = await axios.post(`http://localhost:${PORT}/api/returnUserEmailButNotPassword`, {
-      sessionId: response1.data.result.sessionId,
-      params: {},
-    });
-
-    expect(response2.data.result).toEqual({ email: 'email4@example.com' });
   });
 
   it('should create, return and delete objects in cloud functions', async function () {

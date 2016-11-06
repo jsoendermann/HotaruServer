@@ -11,9 +11,9 @@ import setUpMongoAdapterWithEmptyTestDb from './helpers/setUpMongoAdapterWithEmp
 install();
 
 describe('MongoAdapter (saving)', function () {
-  const MongoAdapter = require('../lib/MongoAdapter').default;
   const Query = require('../lib/Query').default;
   const { SavingMode } = require('../lib/utils');
+  const HotaruUser = require('../lib/HotaruUser').default;
 
   beforeEach(async function () {
     this.adapter = await setUpMongoAdapterWithEmptyTestDb();
@@ -22,23 +22,23 @@ describe('MongoAdapter (saving)', function () {
   });
 
   it('should save users', async function () {
-    const user = { _id: 'testuser', createdAt: new Date(), updatedAt: new Date() };
+    const userData = { _id: 'testuser', createdAt: new Date(), updatedAt: new Date() };
 
-    const error = await catchError(this.adapter.saveUser(user));
+    const error = await catchError(this.adapter.saveUser(new HotaruUser(userData)));
     expect(error).toMatch(/Can not create new objet in UPDATE_ONLY savingMode/);
 
-    const savedUser1 = await this.adapter._internalSaveObject(
+    const savedUserData1 = await this.adapter._internalSaveObject(
       '_User',
-      user,
+      userData,
       { savingMode: SavingMode.CREATE_ONLY }
     );
 
-    savedUser1.a = 'b';
+    savedUserData1.a = 'b';
 
-    const savedUser2 = await this.adapter.saveUser(savedUser1);
+    const savedUser = await this.adapter.saveUser(new HotaruUser(savedUserData1));
 
-    expect(savedUser2._id).toEqual('testuser');
-    expect(savedUser2.a).toEqual('b');
+    expect(savedUser.get('_id')).toEqual('testuser');
+    expect(savedUser.get('a')).toEqual('b');
   });
 
   it('should save single objects', async function () {
@@ -148,20 +148,6 @@ describe('MongoAdapter (saving)', function () {
     const obj = { _id: 'id', __internalField: 42, a: 1 };
     const savedObject = await this.adapter.saveObject('TestClass', obj);
     expect(savedObject.__internalField).toBeUndefined();
-  });
-
-  it('should not reveal internal fields when saving users', async function () {
-    const user = { __bla: true, createdAt: new Date(), updatedAt: new Date() };
-    const savedUser1 = await this.adapter._internalSaveObject(
-      '_User',
-      user,
-      { savingMode: SavingMode.CREATE_ONLY }
-    );
-
-    savedUser1.a = 1;
-
-    const savedUser2 = await this.adapter.saveUser(savedUser1);
-    expect(savedUser2.__bla).toBeUndefined();
   });
 
   it('should not strip internal fields when saving with an _internal method', async function () {

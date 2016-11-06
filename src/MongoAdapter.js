@@ -2,13 +2,14 @@ import { MongoClient } from 'mongodb';
 import _ from 'lodash';
 import { freshId, isAlphanum, stripInternalFields, SavingMode } from './utils';
 import HotaruError from './HotaruError';
-import Query from './Query';
+import HotaruUser from './HotaruUser';
 
 
 export default class MongoAdapter {
   constructor({ uri }) {
     this._uri = uri;
   }
+
 
   async _getDb() {
     if (this._connectionPromise) {
@@ -33,18 +34,22 @@ export default class MongoAdapter {
     return this._connectionPromise;
   }
 
+
   async _getCollection(collectionName) {
     const db = await this._getDb();
     return db.collection(collectionName);
   }
 
+
   async _getUserCollection() {
     return this._getCollection('_User');
   }
 
+
   async _getSessionCollection() {
     return this._getCollection('_Session');
   }
+
 
   static _convertQuerySelectors(selectors) {
     const mongoSelectors = [];
@@ -94,6 +99,7 @@ export default class MongoAdapter {
     return {};
   }
 
+
   static _convertQuerySortOperators(sortOperators) {
     const mongoSortOperators = [];
 
@@ -112,6 +118,7 @@ export default class MongoAdapter {
     return mongoSortOperators;
   }
 
+
   async _internalFind(query) {
     const collection = await this._getCollection(query._className);
 
@@ -129,10 +136,12 @@ export default class MongoAdapter {
     return objectsPromise;
   }
 
+
   async find(query) {
     const objects = await this._internalFind(query);
     return objects.map(obj => stripInternalFields(obj));
   }
+
 
   async _internalFirst(query) {
     query.limit(1);
@@ -140,11 +149,13 @@ export default class MongoAdapter {
     return object || null;
   }
 
+
   async first(query) {
     query.limit(1);
     const [object] = await this.find(query);
     return object || null;
   }
+
 
   async _internalSaveAll(className, objects, { savingMode = SavingMode.UPSERT } = {}) {
     // Make sure savingMode is a valid value
@@ -208,6 +219,7 @@ export default class MongoAdapter {
     return collection.find({ _id: { $in: oldAndNewIds } }).toArray();
   }
 
+
   async saveAll(className, objects, { savingMode = SavingMode.UPSERT } = {}) {
     if (!(isAlphanum(className))) {
       throw new HotaruError(HotaruError.INVALID_CLASS_NAME, className);
@@ -217,28 +229,34 @@ export default class MongoAdapter {
     return savedObjects.map(obj => stripInternalFields(obj));
   }
 
+
   async _internalSaveObject(className, object, { savingMode = SavingMode.UPSERT } = {}) {
     const [savedObject] = await this._internalSaveAll(className, [object], { savingMode });
     return savedObject;
   }
+
 
   async saveObject(className, object, { savingMode = SavingMode.UPSERT } = {}) {
     const [savedObject] = await this.saveAll(className, [object], { savingMode });
     return savedObject;
   }
 
+
   async saveUser(user) {
-    const savedUser = await this._internalSaveObject('_User', user, { savingMode: SavingMode.UPDATE_ONLY });
-    return stripInternalFields(savedUser);
+    const savedUserData = await this._internalSaveObject('_User', user._getRawData(), { savingMode: SavingMode.UPDATE_ONLY });
+    return new HotaruUser(savedUserData);
   }
+
 
   async deleteObject(className, object) {
     return this.deleteAll(className, [object]);
   }
 
+
   async _internalDeleteObject(className, object) {
     return this._internalDeleteAll(className, [object]);
   }
+
 
   async deleteAll(className, objects) {
     if (!(isAlphanum(className))) {
@@ -247,6 +265,7 @@ export default class MongoAdapter {
 
     return this._internalDeleteAll(className, objects);
   }
+
 
   async _internalDeleteAll(className, objects) {
     const ids = [];

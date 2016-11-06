@@ -5,6 +5,7 @@ import _ from 'lodash';
 import defaultdict from 'defaultdict-proxy';
 import Semaphore from 'semaphore-async-await';
 import HotaruError from './HotaruError';
+import HotaruUser from './HotaruUser';
 import { freshId, isAlphanum, validateEmail, stripInternalFields, SavingMode } from './utils';
 import Query from './Query';
 
@@ -54,24 +55,27 @@ function loggedInRouteHandlerWrapper(loggedInRouteHandler, dbAdapter) {
     try {
       const userQuery = new Query('_User');
       userQuery.equalTo('_id', session.userId);
-      const internalUser = await dbAdapter._internalFirst(userQuery);
+      const userData = await dbAdapter._internalFirst(userQuery);
 
-      if (internalUser === null) {
+      if (userData === null) {
         // This is weird, the user must've gotten deleted after the session was created.
         // The best course of action here is probably to delete the session and pretend
         // it didn't exist
         await dbAdapter._internalDeleteObject('_Session', session);
         throw new HotaruError(HotaruError.SESSION_NOT_FOUND);
       }
-      
+
+      const user = new HotaruUser(userData);
+
       // await is necessary because loggedInRouteHandler has to finish executing before
       // we release the lock.
-      return await loggedInRouteHandler(req, sessionId, internalUser);
+      return await loggedInRouteHandler(req, sessionId, user);
     } finally {
       locks[session.userId].signal();
     }
   };
 }
+
 
 export default class HotaruServer {
 
@@ -83,6 +87,7 @@ export default class HotaruServer {
 
     _.bindAll(this, ['logInAsGuest', 'signUp', 'convertGuestUser', 'logIn', 'logOut', 'runCloudFunction']);
   }
+
 
   static createServer({ dbAdapter, cloudFunctions, debug = false }) {
     const server = new HotaruServer({ dbAdapter, cloudFunctions, debug });
@@ -105,11 +110,13 @@ export default class HotaruServer {
         throw new HotaruError(HotaruError.CLOUD_FUNCTION_NAMES_MUST_BE_ALPHANUMERIC);
       }
 
-      router.post(`/${name}`, (req, res) => routeHandlerWrapper(loggedInRouteHandlerWrapper(server.runCloudFunction(name), dbAdapter), server.debug)(req, res));
+      router.post(`/${name}`, (req, res) =>
+        routeHandlerWrapper(loggedInRouteHandlerWrapper(server.runCloudFunction(name), dbAdapter), server.debug)(req, res));
     });
 
     return router;
   }
+
 
   static _freshUserObject(email, hashedPassword) {
     const now = new Date();
@@ -120,6 +127,7 @@ export default class HotaruServer {
       updatedAt: now,
     };
   }
+
 
   async logInAsGuest(_req) {
     const newInternalUser = await this.dbAdapter._internalSaveObject(
@@ -144,6 +152,7 @@ export default class HotaruServer {
     const newUser = stripInternalFields(newInternalUser);
     return { sessionId: newSession._id, user: newUser };
   }
+
 
   async signUp(req) {
     const { email, password } = req.body;
@@ -172,7 +181,6 @@ export default class HotaruServer {
       { savingMode: SavingMode.CREATE_ONLY }
     );
 
-
     // TODO If creating the session fails, we should delete the user and return an error
     const newSession = await this.dbAdapter._internalSaveObject(
       '_Session',
@@ -190,22 +198,23 @@ export default class HotaruServer {
     return { sessionId: newSession._id, user: newUser };
   }
 
-  async convertGuestUser(req, sessionId, internalUser) {
+
+  async convertGuestUser(req, sessionId, user) {
     const { email, password } = req.body;
 
-    if (internalUser.email !== null) {
+    if (user.get('email') !== null) {
       throw new HotaruError(HotaruError.CAN_NOT_CONVERT_NON_GUEST_USER);
     }
 
-    internalUser.email = email;
-    // TODO extract password management into a separate module
-    internalUser.__hashedPassword = bcrypt.hashSync(password, 10);
+    user.set('email', email);
+    const hashedPassword = bcrypt.hashSync(password, 10);
+    user._setHashedPassword(hashedPassword);
 
-    const savedInternalUser = await this.dbAdapter.saveUser(internalUser);
-    const savedUser = stripInternalFields(savedInternalUser);
+    const savedUser = await this.dbAdapter.saveUser(user);
 
-    return { user: savedUser };
+    return { user: savedUser._getStrippedRawData() };
   }
+
 
   async logIn(req) {
     const { email, password } = req.body;
@@ -238,7 +247,8 @@ export default class HotaruServer {
     return { sessionId: newSession._id, user };
   }
 
-  async logOut(req, sessionId) {
+
+  async logOut(req, sessionId, _user) {
     const sessionQuery = new Query('_Session');
     sessionQuery.equalTo('_id', sessionId);
     const session = await this.dbAdapter._internalFirst(sessionQuery);
@@ -256,10 +266,8 @@ export default class HotaruServer {
   }
 
   runCloudFunction(cloudFunctionName) {
-    return async (req, sessionId, internalUser) => {
+    return async (req, sessionId, user) => {
       const { params, installationDetails } = req.body;
-
-      const user = stripInternalFields(internalUser);
 
       const cloudFunction = this.cloudFunctions.find(({ name }) => cloudFunctionName === name).func;
       return await cloudFunction(this.dbAdapter, user, params, installationDetails);
