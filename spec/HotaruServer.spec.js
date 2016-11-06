@@ -5,6 +5,7 @@ import axios from 'axios';
 import install from 'jasmine-es6';
 
 import toBeAnAlphanumericString from './matchers/toBeAnAlphanumericString';
+import toHaveHappenedRecently from './matchers/toHaveHappenedRecently';
 import wait from './helpers/wait';
 
 const PACKAGE_VERSION = require(`${__dirname}/../package.json`).version; // eslint-disable-line
@@ -24,20 +25,20 @@ describe('HotaruServer', function () {
   const HotaruError = require('../lib/HotaruError').default;
 
   beforeAll(async function () {
-    jasmine.addMatchers({ toBeAnAlphanumericString });
+    jasmine.addMatchers({ toBeAnAlphanumericString, toHaveHappenedRecently });
 
     const app = express();
 
-    const dbAdapter = new MongoAdapter({
+    this.dbAdapter = new MongoAdapter({
       uri: DB_URI,
       schema: null,
     });
 
-    const db = await dbAdapter._getDb();
+    const db = await this.dbAdapter._getDb();
     await db.dropDatabase();
 
     const server = HotaruServer.createServer({
-      dbAdapter,
+      dbAdapter: this.dbAdapter,
       cloudFunctions: [
         {
           name: 'returnParams',
@@ -86,7 +87,7 @@ describe('HotaruServer', function () {
             user.syncVar = user.syncVar || 0;
 
             const tmp = user.syncVar;
-            await wait(1000);
+            await wait(500);
             user.syncVar = tmp + 1;
 
             await dbAdapter_.saveUser(user);
@@ -108,6 +109,8 @@ describe('HotaruServer', function () {
     expect(response.data.result.sessionId).toBeTruthy();
     expect(response.data.result.user._id).toBeAnAlphanumericString(15);
     expect(response.data.result.user.__hashedPassword).toBeUndefined();
+    expect(new Date(response.data.result.user.createdAt)).toHaveHappenedRecently();
+    expect(new Date(response.data.result.user.updatedAt)).toHaveHappenedRecently();
     expect(response.data.serverVersion).toEqual(PACKAGE_VERSION);
   });
 
@@ -121,6 +124,43 @@ describe('HotaruServer', function () {
     expect(response.data.result.sessionId).toBeTruthy();
     expect(response.data.result.user._id).toBeAnAlphanumericString(15);
     expect(response.data.result.user.__hashedPassword).toBeUndefined();
+  });
+
+  it('should not sign up new users with invalid email addresses', async function () {
+    const response = await axios.post(`http://localhost:${PORT}/api/_signUp`, {
+      email: 'arst',
+      password: 'password',
+    });
+
+    expect(response.data.status).toEqual('error');
+    expect(response.data.code).toEqual(HotaruError.INVALID_EMAIL_ADDRESS);
+  });
+
+  it('should not sign up new users with invalid passwords', async function () {
+    const response = await axios.post(`http://localhost:${PORT}/api/_signUp`, {
+      email: 'email1.5@example.com',
+      password: 'short',
+    });
+
+    expect(response.data.status).toEqual('error');
+    expect(response.data.code).toEqual(HotaruError.INVALID_PASSWORD);
+  });
+
+  it('should not let users sign up with existing email addresses', async function () {
+    const response1 = await axios.post(`http://localhost:${PORT}/api/_signUp`, {
+      email: 'email1.6@example.com',
+      password: 'password',
+    });
+
+    expect(response1.data.status).toEqual('ok');
+
+    const response2 = await axios.post(`http://localhost:${PORT}/api/_signUp`, {
+      email: 'email1.6@example.com',
+      password: 'password',
+    });
+
+    expect(response2.data.status).toEqual('error');
+    expect(response2.data.code).toEqual(HotaruError.USER_ALREADY_EXISTS);
   });
 
   it('should convert guest users', async function () {
@@ -169,6 +209,25 @@ describe('HotaruServer', function () {
     expect(response2.data.code).toEqual(HotaruError.SESSION_NOT_FOUND);
   });
 
+  it('should handle sessionIds of non-existing users', async function () {
+    await this.dbAdapter._internalSaveObject(
+      '_Session',
+      {
+        _id: 'SESSION_ID',
+        userId: 'I DO NOT EXIST',
+        createdAt: new Date(),
+        expiresAt: new Date('Jan 1, 2039'),
+      }
+    );
+
+    const response = await axios.post(`http://localhost:${PORT}/api/_logOut`, {
+      sessionId: 'SESSION_ID',
+    });
+
+    expect(response.data.status).toEqual('error');
+    expect(response.data.code).toEqual(HotaruError.SESSION_NOT_FOUND);
+  });
+
   it('should log out and log in users', async function () {
     const response1 = await axios.post(`http://localhost:${PORT}/api/_signUp`, {
       email: 'email3@example.com',
@@ -192,6 +251,39 @@ describe('HotaruServer', function () {
     expect(response3.data.result.sessionId).toBeTruthy();
     expect(response3.data.result.user._id).toBeAnAlphanumericString(15);
     expect(response3.data.result.user.__hashedPassword).toBeUndefined();
+  });
+
+  it('should not log in users with non-existing email addresses', async function () {
+    const response = await axios.post(`http://localhost:${PORT}/api/_logIn`, {
+      email: 'IDONTEXIST@example.com',
+      password: 'password',
+    });
+
+    expect(response.data.status).toEqual('error');
+    expect(response.data.code).toEqual(HotaruError.NO_USER_WITH_GIVEN_EMAIL_ADDRESS);
+  });
+
+  it('should not log in users with wrong passwords', async function () {
+    const response1 = await axios.post(`http://localhost:${PORT}/api/_signUp`, {
+      email: 'email3.5@example.com',
+      password: 'password',
+    });
+
+    expect(response1.data.status).toEqual('ok');
+
+    const response2 = await axios.post(`http://localhost:${PORT}/api/_logOut`, {
+      sessionId: response1.data.result.sessionId,
+    });
+
+    expect(response2.data.status).toEqual('ok');
+
+    const response3 = await axios.post(`http://localhost:${PORT}/api/_logIn`, {
+      email: 'email3.5@example.com',
+      password: 'WRONGPASSWORD',
+    });
+
+    expect(response3.data.status).toEqual('error');
+    expect(response3.data.code).toEqual(HotaruError.INCORRECT_PASSWORD);
   });
 
   it('should process parameters when calling cloud functions', async function () {
@@ -246,16 +338,22 @@ describe('HotaruServer', function () {
   });
 
   it('should synchronize user-specific endpoints', async function () {
-    const response1 = await axios.post(`http://localhost:${PORT}/api/_logInAsGuest`, {});
+    const response = await axios.post(`http://localhost:${PORT}/api/_logInAsGuest`, {});
+    expect(response.data.status).toEqual('ok');
+
+    const req1 = axios.post(`http://localhost:${PORT}/api/synchronizationTest`, {
+      sessionId: response.data.result.sessionId,
+    });
+    const req2 = await axios.post(`http://localhost:${PORT}/api/synchronizationTest`, {
+      sessionId: response.data.result.sessionId,
+    });
+
+    const response1 = await req1;
+    const response2 = await req2;
+
     expect(response1.data.status).toEqual('ok');
+    expect(response2.data.status).toEqual('ok');
 
-    axios.post(`http://localhost:${PORT}/api/synchronizationTest`, {
-      sessionId: response1.data.result.sessionId,
-    });
-    const response2 = await axios.post(`http://localhost:${PORT}/api/synchronizationTest`, {
-      sessionId: response1.data.result.sessionId,
-    });
-
-    expect(response2.data.result).toEqual(2);
+    expect(Math.max(response1.data.result, response2.data.result)).toEqual(2);
   });
 });

@@ -11,7 +11,7 @@ describe('MongoAdapter (querying)', function () {
   const Query = require('../lib/Query').default;
 
   const TEST_OBJECTS = [
-    { _id: 'obj1', a: 1, b: 'test', c: [1, 2] },
+    { _id: 'obj1', a: 1, b: 'test', c: [1, 2], __internal: 'bla' },
     { _id: 'obj2', a: 1, b: 'testtest', c: [2] },
     { _id: 'obj3', a: 2, b: 'test test', c: [2] },
     { _id: 'obj4', a: 2, b: 'TEST' },
@@ -166,21 +166,19 @@ describe('MongoAdapter (querying)', function () {
   });
 
   it('should strip internal fields', async function () {
-    await this.adapter._createGuestUser();
-    const user = await this.adapter.first(new Query('_User'));
+    const query = new Query('TestClass');
+    query.equalTo('_id', 'obj1');
+    const obj = await this.adapter.first(query);
 
-    expect(user._id).toBeAnAlphanumericString(15);
-    expect(user.email).toBeNull();
-    expect(user.__hashedPassword).toBeUndefined();
+    expect(obj.__internal).toBeUndefined();
   });
 
   it('should not strip internal fields when using _internalFind', async function () {
-    await this.adapter._createGuestUser();
-    const user = await this.adapter._internalFirst(new Query('_User'));
+    const query = new Query('TestClass');
+    query.equalTo('_id', 'obj1');
+    const obj = await this.adapter._internalFirst(query);
 
-    expect(user._id).toBeAnAlphanumericString(15);
-    expect(user.email).toBeNull();
-    expect(user.__hashedPassword).toBeNull();
+    expect(obj.__internal).not.toBeUndefined();
   });
 
   it('should return null when calling first with a query that returns no result', async function () {
