@@ -6,7 +6,7 @@ import defaultdict from 'defaultdict-proxy';
 import Semaphore from 'semaphore-async-await';
 import HotaruError from './HotaruError';
 import HotaruUser from './HotaruUser';
-import { freshId, isAlphanum, validateEmail, stripInternalFields, SavingMode } from './utils';
+import { freshId, isAlphanum, validateEmail, stripInternalFields, SavingMode, parseJsonDates } from './utils';
 import Query from './Query';
 
 const PACKAGE_VERSION = require(`${__dirname}/../package.json`).version; // eslint-disable-line
@@ -18,8 +18,10 @@ function routeHandlerWrapper(routeHandler, debug = false) {
   return async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
 
+    const body = parseJsonDates(req.body);
+
     try {
-      const result = await routeHandler(req);
+      const result = await routeHandler(body);
       res.send(JSON.stringify({ status: 'ok', result, serverVersion: PACKAGE_VERSION }));
     } catch (error) {
       let response;
@@ -36,8 +38,8 @@ function routeHandlerWrapper(routeHandler, debug = false) {
 }
 
 function loggedInRouteHandlerWrapper(loggedInRouteHandler, dbAdapter) {
-  return async (req) => {
-    const { sessionId } = req.body;
+  return async (body) => {
+    const { sessionId } = body;
 
     if (sessionId === undefined) {
       throw new HotaruError(HotaruError.NOT_LOGGED_IN);
@@ -69,7 +71,7 @@ function loggedInRouteHandlerWrapper(loggedInRouteHandler, dbAdapter) {
 
       // await is necessary because loggedInRouteHandler has to finish executing before
       // we release the lock.
-      return await loggedInRouteHandler(req, sessionId, user);
+      return await loggedInRouteHandler(body, sessionId, user);
     } finally {
       locks[session.userId].signal();
     }
@@ -105,6 +107,9 @@ export default class HotaruServer {
     router.post('/_logOut', (req, res) =>
       routeHandlerWrapper(loggedInRouteHandlerWrapper(server.logOut, dbAdapter), server.debug)(req, res));
 
+    router.post('_synchronizeUser', (req, res) =>
+      routeHandlerWrapper(loggedInRouteHandlerWrapper(server.synchronizeUser, dbAdapter), server.debug)(req, res));
+
     cloudFunctions.forEach(({ name }) => {
       if (!isAlphanum(name)) {
         throw new HotaruError(HotaruError.CLOUD_FUNCTION_NAMES_MUST_BE_ALPHANUMERIC);
@@ -129,7 +134,7 @@ export default class HotaruServer {
   }
 
 
-  async logInAsGuest(_req) {
+  async logInAsGuest(_body) {
     const newInternalUser = await this.dbAdapter._internalSaveObject(
       '_User',
       HotaruServer._freshUserObject(null, null, true),
@@ -154,8 +159,8 @@ export default class HotaruServer {
   }
 
 
-  async signUp(req) {
-    const { email, password } = req.body;
+  async signUp(body) {
+    const { email, password } = body;
 
     if (!validateEmail(email)) {
       throw new HotaruError(HotaruError.INVALID_EMAIL_ADDRESS);
@@ -199,8 +204,8 @@ export default class HotaruServer {
   }
 
 
-  async convertGuestUser(req, sessionId, user) {
-    const { email, password } = req.body;
+  async convertGuestUser(body, sessionId, user) {
+    const { email, password } = body;
 
     if (user.get('email') !== null) {
       throw new HotaruError(HotaruError.CAN_NOT_CONVERT_NON_GUEST_USER);
@@ -216,8 +221,8 @@ export default class HotaruServer {
   }
 
 
-  async logIn(req) {
-    const { email, password } = req.body;
+  async logIn(body) {
+    const { email, password } = body;
 
     const userQuery = new Query('_User');
     userQuery.equalTo('email', email);
@@ -248,7 +253,7 @@ export default class HotaruServer {
   }
 
 
-  async logOut(req, sessionId, _user) {
+  async logOut(_body, sessionId, _user) {
     const sessionQuery = new Query('_Session');
     sessionQuery.equalTo('_id', sessionId);
     const session = await this.dbAdapter._internalFirst(sessionQuery);
@@ -265,9 +270,21 @@ export default class HotaruServer {
     return {};
   }
 
+
+  async synchronizeUser(body, sessionId, user) {
+    const { clientChangelog } = body;
+
+    user._mergeChangelog(clientChangelog);
+
+    const savedUser = await this.dbAdapter.saveUser(user);
+
+    return { user: savedUser._getStrippedRawData() };
+  }
+
+
   runCloudFunction(cloudFunctionName) {
-    return async (req, sessionId, user) => {
-      const { params, installationDetails } = req.body;
+    return async (body, sessionId, user) => {
+      const { params, installationDetails } = body;
 
       const cloudFunction = this.cloudFunctions.find(({ name }) => cloudFunctionName === name).func;
       return await cloudFunction(this.dbAdapter, user, params, installationDetails);

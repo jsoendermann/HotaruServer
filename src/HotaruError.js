@@ -34,6 +34,7 @@ export default class HotaruError extends Error {
   static get CLOUD_FUNCTION_NAMES_MUST_BE_ALPHANUMERIC() { return 118; }
   static get NOT_LOGGED_IN() { return 119; }
   static get INVALID_FIELD_NAME() { return 120; }
+  static get INVALID_CHANGE_TYPE() { return 121; }
 
   static messageWithCode(code) {
     switch (code) {
@@ -64,6 +65,7 @@ export default class HotaruError extends Error {
         return 'Cloud function names must be alphanumeric';
       case HotaruError.NOT_LOGGED_IN: return 'Not logged in';
       case HotaruError.INVALID_FIELD_NAME: return 'Invalid field name';
+      case HotaruError.INVALID_CHANGE_TYPE: return 'Invalid change type';
       default: return `Error ${code}`;
     }
   }

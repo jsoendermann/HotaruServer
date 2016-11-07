@@ -81,17 +81,16 @@ describe('HotaruUser', function () {
     expect(user.get('b')).toEqual([2]);
   });
 
-  it('should keep a changelog', () => {
-    const s = changelog => changelog.map(entry => ({
-      type: entry.type,
-      field: entry.field,
-      value: entry.value,
-    }));
+  const s = changelog => changelog.map(entry => ({
+    type: entry.type,
+    field: entry.field,
+    value: entry.value,
+  }));
 
+  it('should keep a changelog', () => {
     const user = new HotaruUser({ a: 1, b: [] });
     user.set('a', 2);
 
-    expect(user._data.__changelog[0]._id).toBeAnAlphanumericString(15);
     expect(s(user._data.__changelog)).toEqual([
       { type: 'set', field: 'a', value: 2 },
     ]);
@@ -113,12 +112,149 @@ describe('HotaruUser', function () {
 
     user.set('a', 3);
 
-    expect(user._data.__changelog[0]._id).toBeAnAlphanumericString(15);
     expect(s(user._data.__changelog)).toEqual([
       { type: 'set', field: 'b', value: 'bla' },
       { type: 'set', field: 'a', value: 3 },
     ]);
   });
 
-  // changelog
+  it('should overwrite local vars when client set a newer value', () => {
+    const user = new HotaruUser({});
+    user.set('a', 1);
+
+    const clientChangelog = [
+      {
+        date: new Date('2039-01-01'),
+        type: 'set',
+        field: 'a',
+        value: 2,
+      },
+    ];
+
+    user._mergeChangelog(clientChangelog);
+
+    expect(user.get('a')).toEqual(2);
+  });
+
+  it('should not overwrite local values when the value set on the client is older', () => {
+    const user = new HotaruUser({});
+    user.set('a', 1);
+
+    const clientChangelog = [
+      {
+        date: new Date('1900-01-01'),
+        type: 'set',
+        field: 'a',
+        value: 2,
+      },
+    ];
+
+    user._mergeChangelog(clientChangelog);
+
+    expect(user.get('a')).toEqual(1);
+  });
+
+  it('should create numbers when they get incremented on the client', () => {
+    const user = new HotaruUser({});
+    const clientChangelog = [
+      {
+        date: new Date('1900-01-01'),
+        type: 'increment',
+        field: 'a',
+        value: 42,
+      },
+    ];
+
+    user._mergeChangelog(clientChangelog);
+
+    expect(user.get('a')).toEqual(42);
+  });
+
+  it('should create arrays when they are appended to on the client', () => {
+    const user = new HotaruUser({});
+    const clientChangelog = [
+      {
+        date: new Date('1900-01-01'),
+        type: 'append',
+        field: 'a',
+        value: 42,
+      },
+    ];
+
+    user._mergeChangelog(clientChangelog);
+
+    expect(user.get('a')).toEqual([42]);
+  });
+
+  it('should merge increments', () => {
+    const user = new HotaruUser({});
+    user.increment('a', 21);
+    const clientChangelog = [
+      {
+        date: new Date('1900-01-01'),
+        type: 'increment',
+        field: 'a',
+        value: 21,
+      },
+    ];
+
+    user._mergeChangelog(clientChangelog);
+
+    expect(user.get('a')).toEqual(42);
+  });
+
+  it('should merge appends', () => {
+    const user = new HotaruUser({});
+    user.append('a', 21);
+    const clientChangelog = [
+      {
+        date: new Date('1900-01-01'),
+        type: 'append',
+        field: 'a',
+        value: 21,
+      },
+    ];
+
+    user._mergeChangelog(clientChangelog);
+
+    expect(user.get('a')).toEqual([21, 21]);
+  });
+
+  it('should preperly merge if we increment and the client set the value before the increment', () => {
+    const user = new HotaruUser({});
+    user.increment('a', 1);
+
+    expect(user.get('a')).toEqual(1);
+
+    const clientChangelog = [
+      {
+        date: new Date('1900-01-01'),
+        type: 'set',
+        field: 'a',
+        value: 10,
+      },
+    ];
+
+    user._mergeChangelog(clientChangelog);
+
+    expect(user.get('a')).toEqual(11);
+  });
+
+  it('should overwrite client increments if we set the value later', () => {
+    const user = new HotaruUser({});
+    user.set('a', 42);
+
+    const clientChangelog = [
+      {
+        date: new Date('1900-01-01'),
+        type: 'increment',
+        field: 'a',
+        value: 10,
+      },
+    ];
+
+    user._mergeChangelog(clientChangelog);
+
+    expect(user.get('a')).toEqual(42);
+  });
 });
