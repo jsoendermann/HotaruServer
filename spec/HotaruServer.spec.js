@@ -87,6 +87,14 @@ describe('HotaruServer', function () {
             return user.get('syncVar');
           },
         },
+        {
+          name: 'setVar',
+          func: async (dbAdapter_, user, params, _installationDetails) => {
+            const { field, value } = params;
+            user.set(field, value);
+            await dbAdapter_.saveUser(user);
+          },
+        },
       ],
       debug: true,
     });
@@ -334,5 +342,52 @@ describe('HotaruServer', function () {
     expect(response2.data.status).toEqual('ok');
 
     expect(Math.max(response1.data.result, response2.data.result)).toEqual(2);
+  });
+
+  it('should synchronize users', async () => {
+    const response1 = await axios.post(`http://localhost:${PORT}/api/_logInAsGuest`, {});
+    expect(response1.data.status).toEqual('ok');
+    const sessionId = response1.data.result.sessionId;
+
+    const response2 = await axios.post(`http://localhost:${PORT}/api/setVar`, { sessionId, params: { field: 'a', value: 2 } });
+    expect(response2.data.status).toEqual('ok');
+    const response3 = await axios.post(`http://localhost:${PORT}/api/setVar`, { sessionId, params: { field: 'b', value: 'foo' } });
+    expect(response3.data.status).toEqual('ok');
+
+    const clientChangelog = [
+      {
+        date: new Date(),
+        type: 'increment',
+        field: 'a',
+        value: 1,
+      },
+      {
+        date: new Date(),
+        type: 'set',
+        field: 'b',
+        value: 'bla',
+      },
+      {
+        date: new Date(),
+        type: 'increment',
+        field: 'a',
+        value: 1,
+      },
+    ];
+
+    const response4 = await axios.post(`http://localhost:${PORT}/api/_synchronizeUser`, { sessionId, clientChangelog });
+    expect(response4.data.status).toEqual('ok');
+    const newUser = response4.data.result.user;
+    expect(newUser.a).toEqual(4);
+    expect(newUser.b).toEqual('bla');
+
+    const response5 = await axios.post(`http://localhost:${PORT}/api/setVar`, { sessionId, params: { field: 'a', value: -1 } });
+    expect(response5.data.status).toEqual('ok');
+
+    const response6 = await axios.post(`http://localhost:${PORT}/api/_synchronizeUser`, { sessionId, clientChangelog: [] });
+    expect(response6.data.status).toEqual('ok');
+    const newestUser = response6.data.result.user;
+    expect(newestUser.a).toEqual(-1);
+    expect(newestUser.b).toEqual('bla');
   });
 });
