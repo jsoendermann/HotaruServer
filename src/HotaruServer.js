@@ -277,8 +277,9 @@ export default class HotaruServer {
     user._mergeChangelog(clientChangelog);
 
     const savedUser = await this.dbAdapter.saveUser(user);
+    const processedChanges = clientChangelog.map(c => c._id);
 
-    return { user: savedUser._getStrippedRawData() };
+    return { user: savedUser._getStrippedRawData(), processedChanges };
   }
 
 

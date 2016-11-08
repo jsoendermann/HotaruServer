@@ -356,18 +356,21 @@ describe('HotaruServer', function () {
 
     const clientChangelog = [
       {
+        _id: 'id1',
         date: new Date(),
         type: 'increment',
         field: 'a',
         value: 1,
       },
       {
+        _id: 'id2',
         date: new Date(),
         type: 'set',
         field: 'b',
         value: 'bla',
       },
       {
+        _id: 'id3',
         date: new Date(),
         type: 'increment',
         field: 'a',
@@ -380,6 +383,8 @@ describe('HotaruServer', function () {
     const newUser = response4.data.result.user;
     expect(newUser.a).toEqual(4);
     expect(newUser.b).toEqual('bla');
+    const processedChanges1 = response4.data.result.processedChanges;
+    expect(processedChanges1).toEqual(['id1', 'id2', 'id3']);
 
     const response5 = await axios.post(`http://localhost:${PORT}/api/setVar`, { sessionId, params: { field: 'a', value: -1 } });
     expect(response5.data.status).toEqual('ok');
@@ -389,5 +394,7 @@ describe('HotaruServer', function () {
     const newestUser = response6.data.result.user;
     expect(newestUser.a).toEqual(-1);
     expect(newestUser.b).toEqual('bla');
+    const processedChanges2 = response6.data.result.processedChanges;
+    expect(processedChanges2).toEqual([]);
   });
 });
