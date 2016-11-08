@@ -28,7 +28,7 @@ function routeHandlerWrapper(routeHandler, debug = false) {
       if (error instanceof HotaruError) {
         response = { status: 'error', code: error.code, message: error.message };
       } else if (debug) {
-        response = { status: 'error', code: -1, message: error.toString() };
+        response = { status: 'error', code: -1, message: error.toString(), stack: error.stack };
       } else {
         response = { status: 'error', code: -1, message: 'Internal error' };
       }
@@ -87,7 +87,7 @@ export default class HotaruServer {
     this.validatePassword = validatePassword;
     this.debug = debug;
 
-    _.bindAll(this, ['logInAsGuest', 'signUp', 'convertGuestUser', 'logIn', 'logOut', 'runCloudFunction']);
+    _.bindAll(this, ['logInAsGuest', 'signUp', 'convertGuestUser', 'logIn', 'logOut', 'synchronizeUser', 'runCloudFunction']);
   }
 
 
@@ -107,7 +107,7 @@ export default class HotaruServer {
     router.post('/_logOut', (req, res) =>
       routeHandlerWrapper(loggedInRouteHandlerWrapper(server.logOut, dbAdapter), server.debug)(req, res));
 
-    router.post('_synchronizeUser', (req, res) =>
+    router.post('/_synchronizeUser', (req, res) =>
       routeHandlerWrapper(loggedInRouteHandlerWrapper(server.synchronizeUser, dbAdapter), server.debug)(req, res));
 
     cloudFunctions.forEach(({ name }) => {
