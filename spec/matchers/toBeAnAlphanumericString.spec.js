@@ -13,15 +13,15 @@ describe('toBeAnAlphanumericString', async function () {
   });
 
   it('should validate alphanumeric strings', async function () {
-    expect('').toBeAnAlphanumericString();
     expect('arst').toBeAnAlphanumericString();
     expect('123').toBeAnAlphanumericString();
     expect('a1rs2t').toBeAnAlphanumericString();
-    expect('').toBeAnAlphanumericString(0);
     expect('arst').toBeAnAlphanumericString(4);
   });
 
   it('should reject non-alphanumeric strings or strings of incorrect length', async function () {
+    expect('').not.toBeAnAlphanumericString();
+    expect('').not.toBeAnAlphanumericString(0);
     expect('_').not.toBeAnAlphanumericString();
     expect('_User').not.toBeAnAlphanumericString();
     expect('_$_').not.toBeAnAlphanumericString();

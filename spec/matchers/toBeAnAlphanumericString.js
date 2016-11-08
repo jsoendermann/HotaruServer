@@ -1,9 +1,9 @@
+import { isAlphanumeric } from 'validator';
+
 export default function toBeAnAlphanumericString(_util, _customEqualityTesters) {
   return {
     compare(actual, length) {
-      const isAlphanumeric = /^[a-zA-Z0-9]*$/.test(actual);
-
-      if (!isAlphanumeric) {
+      if (!isAlphanumeric(actual)) {
         return {
           pass: false,
           message: `${actual} is not alphanumeric`,

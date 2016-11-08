@@ -2,11 +2,12 @@ import { Router } from 'express';
 import bodyParser from 'body-parser';
 import bcrypt from 'bcryptjs';
 import _ from 'lodash';
+import { isAlphanumeric } from 'validator';
 import defaultdict from 'defaultdict-proxy';
 import Semaphore from 'semaphore-async-await';
 import HotaruError from './HotaruError';
 import HotaruUser from './HotaruUser';
-import { freshId, isAlphanum, validateEmail, stripInternalFields, SavingMode, parseJsonDates } from './utils';
+import { freshId, validateEmail, stripInternalFields, SavingMode, parseJsonDates } from './utils';
 import Query from './Query';
 
 const PACKAGE_VERSION = require(`${__dirname}/../package.json`).version; // eslint-disable-line
@@ -111,7 +112,7 @@ export default class HotaruServer {
       routeHandlerWrapper(loggedInRouteHandlerWrapper(server.synchronizeUser, dbAdapter), server.debug)(req, res));
 
     cloudFunctions.forEach(({ name }) => {
-      if (!isAlphanum(name)) {
+      if (!isAlphanumeric(name)) {
         throw new HotaruError(HotaruError.CLOUD_FUNCTION_NAMES_MUST_BE_ALPHANUMERIC);
       }
 

@@ -1,5 +1,6 @@
+import { isAlphanumeric } from 'validator';
 import HotaruError from './HotaruError';
-import { isAlphanum, stripInternalFields } from './utils';
+import { stripInternalFields } from './utils';
 
 export default class HotaruUser {
   constructor(data) {
@@ -18,7 +19,7 @@ export default class HotaruUser {
   }
 
   get(field) {
-    if (!isAlphanum(field) && field !== '_id') {
+    if (!isAlphanumeric(field) && field !== '_id') {
       throw new HotaruError(HotaruError.INVALID_FIELD_NAME, field);
     }
 
@@ -26,7 +27,7 @@ export default class HotaruUser {
   }
 
   set(field, value) {
-    if (!isAlphanum(field)) {
+    if (!isAlphanumeric(field)) {
       throw new HotaruError(HotaruError.INVALID_FIELD_NAME, field);
     }
 
@@ -47,7 +48,7 @@ export default class HotaruUser {
   }
 
   increment(field, value = 1) {
-    if (!isAlphanum(field)) {
+    if (!isAlphanumeric(field)) {
       throw new HotaruError(HotaruError.INVALID_FIELD_NAME, field);
     }
 
@@ -73,7 +74,7 @@ export default class HotaruUser {
   }
 
   append(field, value) {
-    if (!isAlphanum(field)) {
+    if (!isAlphanumeric(field)) {
       throw new HotaruError(HotaruError.INVALID_FIELD_NAME, field);
     }
 

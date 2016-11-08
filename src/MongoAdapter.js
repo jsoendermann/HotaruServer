@@ -1,6 +1,7 @@
 import { MongoClient } from 'mongodb';
 import _ from 'lodash';
-import { freshId, isAlphanum, stripInternalFields, SavingMode } from './utils';
+import { isAlphanumeric } from 'validator';
+import { freshId, stripInternalFields, SavingMode } from './utils';
 import HotaruError from './HotaruError';
 import HotaruUser from './HotaruUser';
 
@@ -221,7 +222,7 @@ export default class MongoAdapter {
 
 
   async saveAll(className, objects, { savingMode = SavingMode.UPSERT } = {}) {
-    if (!(isAlphanum(className))) {
+    if (!(isAlphanumeric(className))) {
       throw new HotaruError(HotaruError.INVALID_CLASS_NAME, className);
     }
 
@@ -259,7 +260,7 @@ export default class MongoAdapter {
 
 
   async deleteAll(className, objects) {
-    if (!(isAlphanum(className))) {
+    if (!(isAlphanumeric(className))) {
       throw new HotaruError(HotaruError.INVALID_CLASS_NAME, className);
     }
 
