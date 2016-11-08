@@ -1,5 +1,5 @@
 import HotaruError from './HotaruError';
-import { freshId, isAlphanum, stripInternalFields } from './utils';
+import { isAlphanum, stripInternalFields } from './utils';
 
 export default class HotaruUser {
   constructor(data) {
