@@ -2,12 +2,12 @@ import { Router } from 'express';
 import bodyParser from 'body-parser';
 import bcrypt from 'bcryptjs';
 import _ from 'lodash';
-import { isAlphanumeric } from 'validator';
+import { isAlphanumeric, isEmail } from 'validator';
 import defaultdict from 'defaultdict-proxy';
 import Semaphore from 'semaphore-async-await';
 import HotaruError from './HotaruError';
 import HotaruUser from './HotaruUser';
-import { freshId, validateEmail, stripInternalFields, SavingMode, parseJsonDates } from './utils';
+import { freshId, stripInternalFields, SavingMode, parseJsonDates } from './utils';
 import Query from './Query';
 
 const PACKAGE_VERSION = require(`${__dirname}/../package.json`).version; // eslint-disable-line
@@ -163,7 +163,7 @@ export default class HotaruServer {
   async signUp(body) {
     const { email, password } = body;
 
-    if (!validateEmail(email)) {
+    if (!isEmail(email)) {
       throw new HotaruError(HotaruError.INVALID_EMAIL_ADDRESS);
     }
 
