@@ -406,13 +406,6 @@ babel-plugin-transform-async-to-generator@^6.16.0:
     babel-plugin-syntax-async-functions "^6.8.0"
     babel-runtime "^6.0.0"
 
-babel-plugin-transform-builtin-extend@^1.1.0:
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/babel-plugin-transform-builtin-extend/-/babel-plugin-transform-builtin-extend-1.1.0.tgz#460c9f3801467ea373366987c9638f939867dfa4"
-  dependencies:
-    babel-runtime "^6.2.0"
-    babel-template "^6.3.0"
-
 babel-plugin-transform-class-constructor-call@^6.3.13:
   version "6.18.0"
   resolved "https://registry.yarnpkg.com/babel-plugin-transform-class-constructor-call/-/babel-plugin-transform-class-constructor-call-6.18.0.tgz#80855e38a1ab47b8c6c647f8ea1bcd2c00ca3aae"
@@ -1734,6 +1727,13 @@ home-or-tmp@^2.0.0:
   dependencies:
     os-homedir "^1.0.0"
     os-tmpdir "^1.0.1"
+
+hotaru:
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/hotaru/-/hotaru-0.1.0.tgz#853b96e5873599c922772396a28f4b96d02ca8e5"
+  dependencies:
+    axios "^0.15.2"
+    validator "^6.1.0"
 
 http-errors@~1.5.0:
   version "1.5.0"
