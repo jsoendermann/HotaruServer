@@ -2,7 +2,7 @@ import { MongoClient } from 'mongodb';
 import _ from 'lodash';
 import { isAlphanumeric } from 'validator';
 import { freshId, stripInternalFields, SavingMode } from './utils';
-import HotaruError from './HotaruError';
+import HotaruError from '../../sdk-js/lib/HotaruError';
 import HotaruUser from '../../sdk-js/lib/HotaruUser';
 
 

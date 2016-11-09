@@ -5,7 +5,7 @@ import _ from 'lodash';
 import { isAlphanumeric, isEmail } from 'validator';
 import defaultdict from 'defaultdict-proxy';
 import Semaphore from 'semaphore-async-await';
-import HotaruError from './HotaruError';
+import HotaruError from '../../sdk-js/lib/HotaruError';
 import HotaruUser from '../../sdk-js/lib/HotaruUser';
 import { freshId, stripInternalFields, SavingMode, parseJsonDates } from './utils';
 import Query from './Query';
@@ -129,6 +129,7 @@ export default class HotaruServer {
     return {
       email,
       __hashedPassword: hashedPassword,
+      __changelog: [],
       createdAt: now,
       updatedAt: now,
     };

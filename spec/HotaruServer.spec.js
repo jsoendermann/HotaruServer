@@ -22,7 +22,7 @@ describe('HotaruServer', function () {
   const HotaruServer = require('../lib/HotaruServer').default;
   const MongoAdapter = require('../lib/MongoAdapter').default;
   const Query = require('../lib/Query').default;
-  const HotaruError = require('../lib/HotaruError').default;
+  const HotaruError = require('../../sdk-js/lib/HotaruError').default;
 
   beforeAll(async function () {
     jasmine.addMatchers({ toBeAnAlphanumericString, toHaveHappenedRecently });
