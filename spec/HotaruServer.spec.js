@@ -3,8 +3,8 @@
 
 import axios from 'axios';
 import install from 'jasmine-es6';
+import toBeAnAlphanumericString from 'to-be-an-alphanumeric-string';
 
-import toBeAnAlphanumericString from './matchers/toBeAnAlphanumericString';
 import toHaveHappenedRecently from './matchers/toHaveHappenedRecently';
 import wait from './helpers/wait';
 

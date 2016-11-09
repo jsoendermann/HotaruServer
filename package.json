@@ -32,6 +32,7 @@
     "eslint-plugin-import": "^1.16.0",
     "eslint-plugin-jsx-a11y": "^2.2.3",
     "eslint-plugin-react": "^6.4.1",
-    "jasmine-es6": "^0.4.0"
+    "jasmine-es6": "^0.4.0",
+    "to-be-an-alphanumeric-string": "^1.0.1"
   }
 }

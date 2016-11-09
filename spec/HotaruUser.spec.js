@@ -2,7 +2,7 @@
 /* eslint prefer-arrow-callback:0, func-names:0, global-require:0, import/no-extraneous-dependencies:0 */
 
 import install from 'jasmine-es6';
-import toBeAnAlphanumericString from './matchers/toBeAnAlphanumericString';
+import toBeAnAlphanumericString from 'to-be-an-alphanumeric-string';
 
 install();
 

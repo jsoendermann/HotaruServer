@@ -1,8 +1,8 @@
 /* global jasmine, describe, it, expect, beforeAll */
 /* eslint prefer-arrow-callback:0, func-names:0, global-require:0, import/no-extraneous-dependencies:0 */
 
+import toBeAnAlphanumericString from 'to-be-an-alphanumeric-string';
 import toHaveHappenedRecently from './matchers/toHaveHappenedRecently';
-import toBeAnAlphanumericString from './matchers/toBeAnAlphanumericString';
 import setUpMongoAdapterWithEmptyTestDb from './helpers/setUpMongoAdapterWithEmptyTestDb';
 
 // TODO createdAt, updatedAt

@@ -3,9 +3,9 @@
 
 import install from 'jasmine-es6';
 import catchError from 'jasmine-es6/helpers/catch_error';
+import toBeAnAlphanumericString from 'to-be-an-alphanumeric-string';
 
 import toHaveHappenedRecently from './matchers/toHaveHappenedRecently';
-import toBeAnAlphanumericString from './matchers/toBeAnAlphanumericString';
 import setUpMongoAdapterWithEmptyTestDb from './helpers/setUpMongoAdapterWithEmptyTestDb';
 
 install();
