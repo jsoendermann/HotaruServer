@@ -80,7 +80,7 @@ function loggedInRouteHandlerWrapper(loggedInRouteHandler, dbAdapter) {
 }
 
 
-export default class HotaruServer {
+export class HotaruServer {
 
   constructor({ dbAdapter, cloudFunctions, validatePassword = p => p.length > 6, debug = false }) {
     this.dbAdapter = dbAdapter;

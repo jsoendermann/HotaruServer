@@ -6,7 +6,7 @@ import HotaruError from './HotaruError';
 import HotaruUser from './HotaruUser';
 
 
-export default class MongoAdapter {
+export class MongoAdapter {
   constructor({ uri }) {
     this._uri = uri;
   }

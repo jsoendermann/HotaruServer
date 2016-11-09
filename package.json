@@ -17,6 +17,7 @@
     "build": "babel src -d lib",
     "test": "node_modules/jasmine-es6/bin/jasmine.js"
   },
+  "main": "lib/index.js",
   "engines": {
     "node": ">=6.5"
   },
