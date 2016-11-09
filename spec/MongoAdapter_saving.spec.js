@@ -13,7 +13,7 @@ install();
 describe('MongoAdapter (saving)', function () {
   const Query = require('../lib/Query').default;
   const { SavingMode } = require('../lib/utils');
-  const HotaruUser = require('../lib/HotaruUser').default;
+  const HotaruUser = require('../../sdk-js/lib/HotaruUser').default;
 
   beforeEach(async function () {
     this.adapter = await setUpMongoAdapterWithEmptyTestDb();

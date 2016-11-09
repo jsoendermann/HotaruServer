@@ -6,7 +6,7 @@ import { isAlphanumeric, isEmail } from 'validator';
 import defaultdict from 'defaultdict-proxy';
 import Semaphore from 'semaphore-async-await';
 import HotaruError from './HotaruError';
-import HotaruUser from './HotaruUser';
+import HotaruUser from '../../sdk-js/lib/HotaruUser';
 import { freshId, stripInternalFields, SavingMode, parseJsonDates } from './utils';
 import Query from './Query';
 
@@ -68,7 +68,7 @@ function loggedInRouteHandlerWrapper(loggedInRouteHandler, dbAdapter) {
         throw new HotaruError(HotaruError.SESSION_NOT_FOUND);
       }
 
-      const user = new HotaruUser(userData);
+      const user = new HotaruUser(userData, userData.__changelog);
 
       // await is necessary because loggedInRouteHandler has to finish executing before
       // we release the lock.
@@ -80,7 +80,7 @@ function loggedInRouteHandlerWrapper(loggedInRouteHandler, dbAdapter) {
 }
 
 
-export class HotaruServer {
+export default class HotaruServer {
 
   constructor({ dbAdapter, cloudFunctions, validatePassword = p => p.length > 6, debug = false }) {
     this.dbAdapter = dbAdapter;
@@ -214,11 +214,11 @@ export class HotaruServer {
 
     user.set('email', email);
     const hashedPassword = bcrypt.hashSync(password, 10);
-    user._setHashedPassword(hashedPassword);
+    user._internalSet('__hashedPassword', hashedPassword);
 
     const savedUser = await this.dbAdapter.saveUser(user);
 
-    return { user: savedUser._getStrippedRawData() };
+    return { user: stripInternalFields(savedUser._getData()) };
   }
 
 
@@ -227,13 +227,13 @@ export class HotaruServer {
 
     const userQuery = new Query('_User');
     userQuery.equalTo('email', email);
-    const internalUser = await this.dbAdapter._internalFirst(userQuery);
+    const internalUserData = await this.dbAdapter._internalFirst(userQuery);
 
-    if (internalUser === null) {
+    if (internalUserData === null) {
       throw new HotaruError(HotaruError.NO_USER_WITH_GIVEN_EMAIL_ADDRESS);
     }
 
-    if (!bcrypt.compareSync(password, internalUser.__hashedPassword)) {
+    if (!bcrypt.compareSync(password, internalUserData.__hashedPassword)) {
       throw new HotaruError(HotaruError.INCORRECT_PASSWORD);
     }
 
@@ -241,16 +241,16 @@ export class HotaruServer {
       '_Session',
       {
         _id: freshId(32),
-        userId: internalUser._id,
+        userId: internalUserData._id,
         createdAt: new Date(),
         expiresAt: new Date('Jan 1, 2039'),
         // TODO installationId
       },
       { savingMode: SavingMode.CREATE_ONLY }
     );
-    const user = stripInternalFields(internalUser);
+    const strippedUserData = stripInternalFields(internalUserData);
 
-    return { sessionId: newSession._id, user };
+    return { sessionId: newSession._id, user: strippedUserData };
   }
 
 
@@ -275,12 +275,76 @@ export class HotaruServer {
   async synchronizeUser(body, sessionId, user) {
     const { clientChangelog } = body;
 
-    user._mergeChangelog(clientChangelog);
+    const userData = user._getData();
+    let localChangelog = userData.__changelog || [];
 
-    const savedUser = await this.dbAdapter.saveUser(user);
+    const sortedClientChangelog = clientChangelog.sort((a, b) => a.date - b.date);
+    sortedClientChangelog.forEach(change => {
+      switch (change.type) {
+        case 'set':
+          {
+            const existingNewerSet = localChangelog.find(c =>
+              c.type === 'set' && c.date > change.date && c.field === change.field
+            );
+            if (existingNewerSet === undefined) {
+              localChangelog = localChangelog.filter(c => c.field !== change.field || c.date > change.date);
+              const laterLocalIncrementsAndAppends = localChangelog.filter(c => c.field === change.field);
+              userData[change.field] = change.value;
+              laterLocalIncrementsAndAppends.forEach(c => {
+                if (c.type === 'increment') {
+                  userData[change.field] += c.value;
+                } else if (c.type === 'append') {
+                  userData[change.field].append(c.value);
+                } else {
+                  throw new HotaruError(HotaruError.INVALID_CHANGE_TYPE);
+                }
+              });
+              localChangelog.push(change);
+            }
+          }
+          break;
+        case 'increment':
+          {
+            const existingNewerSet = localChangelog.find(c =>
+              c.type === 'set' && c.date > change.date && c.field === change.field
+            );
+            if (existingNewerSet === undefined) {
+              if (userData[change.field] === undefined) {
+                userData[change.field] = 0;
+              }
+              userData[change.field] += change.value;
+              localChangelog.push(change);
+            }
+          }
+          break;
+        case 'append':
+          {
+            const existingNewerSet = localChangelog.find(c =>
+              c.type === 'set' && c.date > change.date && c.field === change.field
+            );
+            if (existingNewerSet === undefined) {
+              if (userData[change.field] === undefined) {
+                userData[change.field] = [];
+              }
+              userData[change.field].push(change.value);
+              localChangelog.push(change);
+            }
+          }
+          break;
+        default: throw new HotaruError(HotaruError.INVALID_CHANGE_TYPE, change.type);
+      }
+    });
+
+    // We append new changes at the end in the loop above even if they should be placed
+    // somewhere in the middle
+    localChangelog.sort((a, b) => a.date - b.date);
+
+    const newUser = new HotaruUser(userData, localChangelog);
+
+    const savedNewUser = await this.dbAdapter.saveUser(newUser);
     const processedChanges = clientChangelog.map(c => c._id);
 
-    return { user: savedUser._getStrippedRawData(), processedChanges };
+    return { user: stripInternalFields(savedNewUser._getData()), processedChanges };
   }
 
 

@@ -3,10 +3,10 @@ import _ from 'lodash';
 import { isAlphanumeric } from 'validator';
 import { freshId, stripInternalFields, SavingMode } from './utils';
 import HotaruError from './HotaruError';
-import HotaruUser from './HotaruUser';
+import HotaruUser from '../../sdk-js/lib/HotaruUser';
 
 
-export class MongoAdapter {
+export default class MongoAdapter {
   constructor({ uri }) {
     this._uri = uri;
   }
@@ -244,8 +244,8 @@ export class MongoAdapter {
 
 
   async saveUser(user) {
-    const savedUserData = await this._internalSaveObject('_User', user._getRawData(), { savingMode: SavingMode.UPDATE_ONLY });
-    return new HotaruUser(savedUserData);
+    const savedUserData = await this._internalSaveObject('_User', user._getData(), { savingMode: SavingMode.UPDATE_ONLY });
+    return new HotaruUser(savedUserData, savedUserData.__changelog);
   }
 
 

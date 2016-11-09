@@ -1,9 +1,9 @@
 export default class HotaruError extends Error {
-  constructor(code, description) {
+  constructor(code, details) {
     let message = '';
 
-    if (description) {
-      message = `${HotaruError.messageWithCode(code)} (${description})`;
+    if (details) {
+      message = `${HotaruError.messageWithCode(code)} (${details})`;
     } else {
       message = HotaruError.messageWithCode(code);
     }
