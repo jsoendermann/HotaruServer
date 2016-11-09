@@ -156,8 +156,8 @@ export default class HotaruServer {
       { savingMode: SavingMode.CREATE_ONLY }
     );
 
-    const newUser = stripInternalFields(newInternalUser);
-    return { sessionId: newSession._id, user: newUser };
+    const newUserData = stripInternalFields(newInternalUser);
+    return { sessionId: newSession._id, userData: newUserData };
   }
 
 
@@ -201,8 +201,8 @@ export default class HotaruServer {
       { savingMode: SavingMode.CREATE_ONLY }
     );
 
-    const newUser = stripInternalFields(newInternalUser);
-    return { sessionId: newSession._id, user: newUser };
+    const newUserData = stripInternalFields(newInternalUser);
+    return { sessionId: newSession._id, userData: newUserData };
   }
 
 
@@ -219,7 +219,7 @@ export default class HotaruServer {
 
     const savedUser = await this.dbAdapter.saveUser(user);
 
-    return { user: stripInternalFields(savedUser._getData()) };
+    return { userData: stripInternalFields(savedUser._getData()) };
   }
 
 
@@ -251,7 +251,7 @@ export default class HotaruServer {
     );
     const strippedUserData = stripInternalFields(internalUserData);
 
-    return { sessionId: newSession._id, user: strippedUserData };
+    return { sessionId: newSession._id, userData: strippedUserData };
   }
 
 
@@ -345,7 +345,7 @@ export default class HotaruServer {
     const savedNewUser = await this.dbAdapter.saveUser(newUser);
     const processedChanges = clientChangelog.map(c => c._id);
 
-    return { user: stripInternalFields(savedNewUser._getData()), processedChanges };
+    return { userData: stripInternalFields(savedNewUser._getData()), processedChanges };
   }
 
 

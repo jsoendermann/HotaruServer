@@ -108,10 +108,10 @@ describe('HotaruServer', function () {
 
     expect(response.data.status).toEqual('ok');
     expect(response.data.result.sessionId).toBeTruthy();
-    expect(response.data.result.user._id).toBeAnAlphanumericString(15);
-    expect(response.data.result.user.__hashedPassword).toBeUndefined();
-    expect(new Date(response.data.result.user.createdAt)).toHaveHappenedRecently();
-    expect(new Date(response.data.result.user.updatedAt)).toHaveHappenedRecently();
+    expect(response.data.result.userData._id).toBeAnAlphanumericString(15);
+    expect(response.data.result.userData.__hashedPassword).toBeUndefined();
+    expect(new Date(response.data.result.userData.createdAt)).toHaveHappenedRecently();
+    expect(new Date(response.data.result.userData.updatedAt)).toHaveHappenedRecently();
     expect(response.data.serverVersion).toEqual(PACKAGE_VERSION);
   });
 
@@ -123,8 +123,8 @@ describe('HotaruServer', function () {
 
     expect(response.data.status).toEqual('ok');
     expect(response.data.result.sessionId).toBeTruthy();
-    expect(response.data.result.user._id).toBeAnAlphanumericString(15);
-    expect(response.data.result.user.__hashedPassword).toBeUndefined();
+    expect(response.data.result.userData._id).toBeAnAlphanumericString(15);
+    expect(response.data.result.userData.__hashedPassword).toBeUndefined();
   });
 
   it('should not sign up new users with invalid email addresses', async function () {
@@ -176,8 +176,8 @@ describe('HotaruServer', function () {
     });
 
     expect(response2.data.status).toEqual('ok');
-    expect(response2.data.result.user._id).toBeAnAlphanumericString(15);
-    expect(response2.data.result.user.__hashedPassword).toBeUndefined();
+    expect(response2.data.result.userData._id).toBeAnAlphanumericString(15);
+    expect(response2.data.result.userData.__hashedPassword).toBeUndefined();
   });
 
   it('should not handle missing sessionIds', async function () {
@@ -250,8 +250,8 @@ describe('HotaruServer', function () {
 
     expect(response3.data.status).toEqual('ok');
     expect(response3.data.result.sessionId).toBeTruthy();
-    expect(response3.data.result.user._id).toBeAnAlphanumericString(15);
-    expect(response3.data.result.user.__hashedPassword).toBeUndefined();
+    expect(response3.data.result.userData._id).toBeAnAlphanumericString(15);
+    expect(response3.data.result.userData.__hashedPassword).toBeUndefined();
   });
 
   it('should not log in users with non-existing email addresses', async function () {
@@ -380,7 +380,7 @@ describe('HotaruServer', function () {
 
     const response4 = await axios.post(`http://localhost:${PORT}/api/_synchronizeUser`, { sessionId, clientChangelog });
     expect(response4.data.status).toEqual('ok');
-    const newUser = response4.data.result.user;
+    const newUser = response4.data.result.userData;
     expect(newUser.a).toEqual(4);
     expect(newUser.b).toEqual('bla');
     const processedChanges1 = response4.data.result.processedChanges;
@@ -391,7 +391,7 @@ describe('HotaruServer', function () {
 
     const response6 = await axios.post(`http://localhost:${PORT}/api/_synchronizeUser`, { sessionId, clientChangelog: [] });
     expect(response6.data.status).toEqual('ok');
-    const newestUser = response6.data.result.user;
+    const newestUser = response6.data.result.userData;
     expect(newestUser.a).toEqual(-1);
     expect(newestUser.b).toEqual('bla');
     const processedChanges2 = response6.data.result.processedChanges;
