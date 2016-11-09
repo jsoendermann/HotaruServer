@@ -1,6 +1,15 @@
 {
   "name": "hotaru-server",
   "version": "0.1.0",
+  "author": {
+    "name": "Jan Soendermann",
+    "email": "jan.soendermann+npm@gmail.com"
+  },
+  "homepage": "https://github.com/jsoendermann/HotaruServer",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com/jsoendermann/HotaruServer.git"
+  },
   "license": "MIT",
   "dependencies": {
     "bcryptjs": "^2.3.0",
