@@ -1054,8 +1054,8 @@ dashdash@^1.12.0:
     assert-plus "^1.0.0"
 
 debug@^2.1.1, debug@^2.2.0:
-  version "2.3.0"
-  resolved "https://registry.yarnpkg.com/debug/-/debug-2.3.0.tgz#3912dc55d7167fc3af17d2b85c13f93deaedaa43"
+  version "2.3.2"
+  resolved "https://registry.yarnpkg.com/debug/-/debug-2.3.2.tgz#94cb466ef7d6d2c7e5245cdd6e4104f2d0d70d30"
   dependencies:
     ms "0.7.2"
 
@@ -1728,9 +1728,9 @@ home-or-tmp@^2.0.0:
     os-homedir "^1.0.0"
     os-tmpdir "^1.0.1"
 
-hotaru:
-  version "0.1.0"
-  resolved "https://registry.yarnpkg.com/hotaru/-/hotaru-0.1.0.tgz#853b96e5873599c922772396a28f4b96d02ca8e5"
+hotaru@^0.1.0:
+  version "0.1.1"
+  resolved "https://registry.yarnpkg.com/hotaru/-/hotaru-0.1.1.tgz#4e2e31afa93eaef27d56b525ddbc71d4f2407305"
   dependencies:
     axios "^0.15.2"
     validator "^6.1.0"
