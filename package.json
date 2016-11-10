@@ -1,6 +1,6 @@
 {
   "name": "hotaru-server",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": {
     "name": "Jan Soendermann",
     "email": "jan.soendermann+npm@gmail.com"
@@ -23,8 +23,8 @@
     "validator": "^6.1.0"
   },
   "scripts": {
-    "start": "node lib/index.js",
     "build": "babel src -d lib",
+    "prepublish": "npm run build",
     "test": "node_modules/jasmine-es6/bin/jasmine.js"
   },
   "main": "lib/index.js",
