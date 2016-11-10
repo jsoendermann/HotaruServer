@@ -2,6 +2,7 @@
 /* eslint prefer-arrow-callback:0, func-names:0, global-require:0, import/no-extraneous-dependencies:0 */
 
 import install from 'jasmine-es6';
+import { HotaruUser } from 'hotaru';
 import catchError from 'jasmine-es6/helpers/catch_error';
 import toBeAnAlphanumericString from 'to-be-an-alphanumeric-string';
 
@@ -13,7 +14,6 @@ install();
 describe('MongoAdapter (saving)', function () {
   const Query = require('../lib/Query').default;
   const { SavingMode } = require('../lib/utils');
-  const HotaruUser = require('../../sdk-js/lib/HotaruUser').default;
 
   beforeEach(async function () {
     this.adapter = await setUpMongoAdapterWithEmptyTestDb();

@@ -5,8 +5,7 @@ import _ from 'lodash';
 import { isAlphanumeric, isEmail } from 'validator';
 import defaultdict from 'defaultdict-proxy';
 import Semaphore from 'semaphore-async-await';
-import HotaruError from '../../sdk-js/lib/HotaruError';
-import HotaruUser from '../../sdk-js/lib/HotaruUser';
+import { HotaruError, HotaruUser } from 'hotaru';
 import { freshId, stripInternalFields, SavingMode, parseJsonDates } from './utils';
 import Query from './Query';
 
