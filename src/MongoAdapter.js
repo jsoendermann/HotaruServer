@@ -1,8 +1,8 @@
 import { MongoClient } from 'mongodb';
 import _ from 'lodash';
 import { isAlphanumeric } from 'validator';
-import { freshId, stripInternalFields, SavingMode } from './utils';
 import { HotaruUser, HotaruError } from 'hotaru';
+import { freshId, stripInternalFields, SavingMode } from './utils';
 
 
 export default class MongoAdapter {
