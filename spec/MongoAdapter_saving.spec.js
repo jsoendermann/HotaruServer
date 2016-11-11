@@ -2,7 +2,7 @@
 /* eslint prefer-arrow-callback:0, func-names:0, global-require:0, import/no-extraneous-dependencies:0 */
 
 import install from 'jasmine-es6';
-import { HotaruUser } from 'hotaru';
+import { HotaruUser, UserDataStore } from 'hotaru';
 import catchError from 'jasmine-es6/helpers/catch_error';
 import toBeAnAlphanumericString from 'to-be-an-alphanumeric-string';
 
@@ -24,7 +24,7 @@ describe('MongoAdapter (saving)', function () {
   it('should save users', async function () {
     const userData = { _id: 'testuser', createdAt: new Date(), updatedAt: new Date() };
 
-    const error = await catchError(this.adapter.saveUser(new HotaruUser(userData)));
+    const error = await catchError(this.adapter.saveUser(new HotaruUser(new UserDataStore(userData))));
     expect(error).toMatch(/Can not create new objet in UPDATE_ONLY savingMode/);
 
     const savedUserData1 = await this.adapter._internalSaveObject(
@@ -35,7 +35,7 @@ describe('MongoAdapter (saving)', function () {
 
     savedUserData1.a = 'b';
 
-    const savedUser = await this.adapter.saveUser(new HotaruUser(savedUserData1));
+    const savedUser = await this.adapter.saveUser(new HotaruUser(new UserDataStore(savedUserData1)));
 
     expect(savedUser.get('_id')).toEqual('testuser');
     expect(savedUser.get('a')).toEqual('b');

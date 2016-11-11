@@ -5,7 +5,7 @@ import _ from 'lodash';
 import { isAlphanumeric, isEmail } from 'validator';
 import defaultdict from 'defaultdict-proxy';
 import Semaphore from 'semaphore-async-await';
-import { HotaruError, HotaruUser } from 'hotaru';
+import { HotaruError, HotaruUser, UserDataStore } from 'hotaru';
 import { freshId, stripInternalFields, SavingMode, parseJsonDates } from './utils';
 import Query from './Query';
 
@@ -67,7 +67,7 @@ function loggedInRouteHandlerWrapper(loggedInRouteHandler, dbAdapter) {
         throw new HotaruError(HotaruError.SESSION_NOT_FOUND);
       }
 
-      const user = new HotaruUser(userData, userData.__changelog);
+      const user = new HotaruUser(new UserDataStore(userData, userData.__changelog));
 
       // await is necessary because loggedInRouteHandler has to finish executing before
       // we release the lock.
@@ -218,7 +218,7 @@ export default class HotaruServer {
 
     const savedUser = await this.dbAdapter.saveUser(user);
 
-    return { userData: stripInternalFields(savedUser._getData()) };
+    return { userData: stripInternalFields(savedUser._getDataStore().getRawData()) };
   }
 
 
@@ -275,8 +275,8 @@ export default class HotaruServer {
   async synchronizeUser(body, sessionId, user) {
     const { clientChangelog } = body;
 
-    const userData = user._getData();
-    let localChangelog = userData.__changelog || [];
+    const userData = user._getDataStore().getRawData();
+    let localChangelog = user._getDataStore().getChangelog();
 
     const sortedClientChangelog = clientChangelog.sort((a, b) => a.date - b.date);
     sortedClientChangelog.forEach(change => {
@@ -339,12 +339,12 @@ export default class HotaruServer {
     // somewhere in the middle
     localChangelog.sort((a, b) => a.date - b.date);
 
-    const newUser = new HotaruUser(userData, localChangelog);
+    const newUser = new HotaruUser(new UserDataStore(userData, localChangelog));
 
     const savedNewUser = await this.dbAdapter.saveUser(newUser);
     const processedChanges = clientChangelog.map(c => c._id);
 
-    return { userData: stripInternalFields(savedNewUser._getData()), processedChanges };
+    return { userData: stripInternalFields(savedNewUser._getDataStore().getRawData()), processedChanges };
   }
 
 

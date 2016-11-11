@@ -1,7 +1,7 @@
 import { MongoClient } from 'mongodb';
 import _ from 'lodash';
 import { isAlphanumeric } from 'validator';
-import { HotaruUser, HotaruError } from 'hotaru';
+import { HotaruUser, HotaruError, UserDataStore } from 'hotaru';
 import { freshId, stripInternalFields, SavingMode } from './utils';
 
 
@@ -243,8 +243,10 @@ export default class MongoAdapter {
 
 
   async saveUser(user) {
-    const savedUserData = await this._internalSaveObject('_User', user._getData(), { savingMode: SavingMode.UPDATE_ONLY });
-    return new HotaruUser(savedUserData, savedUserData.__changelog);
+    const data = user._getDataStore().getRawData();
+    data.__changelog = user._getDataStore().getChangelog();
+    const savedUserData = await this._internalSaveObject('_User', data, { savingMode: SavingMode.UPDATE_ONLY });
+    return new HotaruUser(new UserDataStore(savedUserData, savedUserData.__changelog));
   }
 
 
