@@ -1,0 +1,8 @@
+{
+  "resolution": "main",
+  "tree": {
+    "src": "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/e7772769fab8c206449ce9673cac417370330aa9/validator/validator.d.ts",
+    "raw": "registry:dt/validator#5.7.0+20161105193831",
+    "typings": "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/e7772769fab8c206449ce9673cac417370330aa9/validator/validator.d.ts"
+  }
+}

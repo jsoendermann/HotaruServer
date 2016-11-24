@@ -1,0 +1,9 @@
+{
+  "include": [
+    "./**/*.ts"
+  ],
+  "compilerOptions": {
+    "outDir": "./lib",
+    "target": "es6"
+  }
+}

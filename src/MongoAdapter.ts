@@ -1,37 +1,46 @@
-import { MongoClient } from 'mongodb';
-import _ from 'lodash';
+import { MongoClient, Db } from 'mongodb';
+import * as _ from 'lodash';
 import { isAlphanumeric } from 'validator';
 import { HotaruUser, HotaruError, UserDataStore } from 'hotaru';
-import { freshId, stripInternalFields, SavingMode } from './utils';
+import freshId from './utils/freshId';
+import stripInternalFields from './utils/stripInternalFields';
 
+export enum SavingMode {
+  Upsert,
+  CreateOnly,
+  UpdateOnly
+}
 
-export default class MongoAdapter {
+export class MongoAdapter {
+  private uri: string;
+  private connectionPromise: Promise<Db>;
+
   constructor({ uri }) {
-    this._uri = uri;
+    this.uri = uri;
   }
 
 
   async _getDb() {
-    if (this._connectionPromise) {
-      return this._connectionPromise;
+    if (this.connectionPromise) {
+      return this.connectionPromise;
     }
 
-    this._connectionPromise = MongoClient.connect(this._uri).then(db => {
+    this.connectionPromise = MongoClient.connect(this.uri).then(db => {
       if (!db) {
-        delete this._connectionPromise;
+        delete this.connectionPromise;
         throw new Error('db is falsy');
       }
 
-      db.on('error', () => delete this._connectionPromise);
-      db.on('close', () => delete this._connectionPromise);
+      db.on('error', () => delete this.connectionPromise);
+      db.on('close', () => delete this.connectionPromise);
 
       return db;
     }).catch(error => {
-      delete this._connectionPromise;
+      delete this.connectionPromise;
       return Promise.reject(error);
     });
 
-    return this._connectionPromise;
+    return this.connectionPromise;
   }
 
 
@@ -51,7 +60,7 @@ export default class MongoAdapter {
   }
 
 
-  static _convertQuerySelectors(selectors) {
+  static _convertQuerySelectors(selectors): any {
     const mongoSelectors = [];
 
     for (const selector of selectors) {
@@ -131,9 +140,9 @@ export default class MongoAdapter {
     if (query._skip) {
       objectsPromise = objectsPromise.skip(query._skip);
     }
-    objectsPromise = objectsPromise.toArray();
+    const objects = await objectsPromise.toArray();
 
-    return objectsPromise;
+    return objects;
   }
 
 
@@ -145,43 +154,38 @@ export default class MongoAdapter {
 
   async _internalFirst(query) {
     query.limit(1);
-    const [object] = await this._internalFind(query);
+    const [object]  = await this._internalFind(query);
     return object || null;
   }
 
 
   async first(query) {
     query.limit(1);
-    const [object] = await this.find(query);
+    const [object]  = await this.find(query);
     return object || null;
   }
 
 
-  async _internalSaveAll(className, objects, { savingMode = SavingMode.UPSERT } = {}) {
-    // Make sure savingMode is a valid value
-    if (!Object.keys(SavingMode).map(k => SavingMode[k]).includes(savingMode)) {
-      throw new HotaruError(HotaruError.UNKNOWN_SAVING_MODE, String(savingMode));
-    }
-
+  async _internalSaveAll(className, objects, { savingMode = SavingMode.Upsert } = {}) {
     // Make sure objects does not contain the same existing object more than once
     const oldIds = objects.map(obj => obj._id).filter(id => id !== undefined);
     if (_.uniq(oldIds).length < oldIds.length) {
       throw new HotaruError(HotaruError.CAN_NOT_SAVE_TWO_OBJECTS_WITH_SAME_ID);
     }
 
-    // If we are in UPDATE_ONLY mode, every object has to have an _id
-    if (savingMode === SavingMode.UPDATE_ONLY &&
+    // If we are in UpdateOnly mode, every object has to have an _id
+    if (savingMode === SavingMode.UpdateOnly &&
       objects.includes(obj => obj._id === undefined)) {
-      throw new HotaruError(HotaruError.OBJECT_WITHOUT_ID_IN_UPDATE_ONLY_SAVING_MODE);
+      throw new HotaruError(HotaruError.OBJECT_WITHOUT_ID_IN_UpdateOnly_SAVING_MODE);
     }
 
     const collection = await this._getCollection(className);
     const existingObjects = await collection.find({ _id: { $in: oldIds } }).toArray();
 
-    if (savingMode === SavingMode.CREATE_ONLY && existingObjects.length > 0) {
-      throw new HotaruError(HotaruError.CAN_NOT_OVERWRITE_OBJECT_IN_CREATE_ONLY_SAVING_MODE);
-    } else if (savingMode === SavingMode.UPDATE_ONLY && existingObjects.length !== objects.length) {
-      throw new HotaruError(HotaruError.CAN_NOT_CREATE_NEW_OBJECT_IN_UPDATE_ONLY_SAVING_MODE);
+    if (savingMode === SavingMode.CreateOnly && existingObjects.length > 0) {
+      throw new HotaruError(HotaruError.CAN_NOT_OVERWRITE_OBJECT_IN_CreateOnly_SAVING_MODE);
+    } else if (savingMode === SavingMode.UpdateOnly && existingObjects.length !== objects.length) {
+      throw new HotaruError(HotaruError.CAN_NOT_CREATE_NEW_OBJECT_IN_UpdateOnly_SAVING_MODE);
     }
 
     const oldAndNewIds = [];
@@ -189,7 +193,7 @@ export default class MongoAdapter {
     const now = new Date();
     for (const obj of objectCopies) {
       // Create fresh _ids for new objects which don't have an _id yet. Note: We allow objects with _id !== undefined
-      // in CREATE_ONLY savingMode because the user might want to set the _id herself to something other than freshId() on new objects
+      // in CreateOnly savingMode because the user might want to set the _id herself to something other than freshId() on new objects
       obj._id = obj._id || freshId();
       obj.createdAt = obj.createdAt || now;
       obj.updatedAt = now;
@@ -220,7 +224,7 @@ export default class MongoAdapter {
   }
 
 
-  async saveAll(className, objects, { savingMode = SavingMode.UPSERT } = {}) {
+  async saveAll(className, objects, { savingMode = SavingMode.Upsert } = {}) {
     if (!(isAlphanumeric(className))) {
       throw new HotaruError(HotaruError.INVALID_CLASS_NAME, className);
     }
@@ -230,13 +234,13 @@ export default class MongoAdapter {
   }
 
 
-  async _internalSaveObject(className, object, { savingMode = SavingMode.UPSERT } = {}) {
+  async _internalSaveObject(className, object, { savingMode = SavingMode.Upsert } = {}) {
     const [savedObject] = await this._internalSaveAll(className, [object], { savingMode });
     return savedObject;
   }
 
 
-  async saveObject(className, object, { savingMode = SavingMode.UPSERT } = {}) {
+  async saveObject(className, object, { savingMode = SavingMode.Upsert } = {}) {
     const [savedObject] = await this.saveAll(className, [object], { savingMode });
     return savedObject;
   }
@@ -245,7 +249,7 @@ export default class MongoAdapter {
   async saveUser(user) {
     const data = user._getDataStore().getRawData();
     data.__changelog = user._getDataStore().getChangelog();
-    const savedUserData = await this._internalSaveObject('_User', data, { savingMode: SavingMode.UPDATE_ONLY });
+    const savedUserData = await this._internalSaveObject('_User', data, { savingMode: SavingMode.UpdateOnly });
     return new HotaruUser(new UserDataStore(savedUserData, savedUserData.__changelog));
   }
 

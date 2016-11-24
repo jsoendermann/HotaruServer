@@ -1,13 +1,16 @@
 import { Router } from 'express';
-import bodyParser from 'body-parser';
-import bcrypt from 'bcryptjs';
-import _ from 'lodash';
+import { json } from 'body-parser';
+import { hashSync, compareSync } from 'bcryptjs';
+import * as _ from 'lodash';
 import { isAlphanumeric, isEmail } from 'validator';
 import defaultdict from 'defaultdict-proxy';
 import Semaphore from 'semaphore-async-await';
 import { HotaruError, HotaruUser, UserDataStore } from 'hotaru';
-import { freshId, stripInternalFields, SavingMode, parseJsonDates } from './utils';
+import freshId from './utils/freshId';
+import stripInternalFields from './utils/stripInternalFields';
+import parseJsonDates from './utils/parseJsonDates';
 import Query from './Query';
+import { MongoAdapter, SavingMode }  from './MongoAdapter';
 
 const PACKAGE_VERSION = require(`${__dirname}/../package.json`).version; // eslint-disable-line
 
@@ -81,6 +84,11 @@ function loggedInRouteHandlerWrapper(loggedInRouteHandler, dbAdapter) {
 
 export default class HotaruServer {
 
+  private dbAdapter: MongoAdapter;
+  private cloudFunctions: Array<{name: string, func: (dbAdapter: MongoAdapter, user: HotaruUser, params: any, installationDetails: any) => any}>;
+  private validatePassword: (password: string) => boolean;
+  private debug: boolean;
+
   constructor({ dbAdapter, cloudFunctions, validatePassword = p => p.length > 6, debug = false }) {
     this.dbAdapter = dbAdapter;
     this.cloudFunctions = cloudFunctions;
@@ -94,7 +102,7 @@ export default class HotaruServer {
   static createServer({ dbAdapter, cloudFunctions, debug = false }) {
     const server = new HotaruServer({ dbAdapter, cloudFunctions, debug });
     const router = Router({ caseSensitive: true }); // eslint-disable-line new-cap
-    router.use(bodyParser.json());
+    router.use(json());
 
     router.post('/_logInAsGuest', (req, res) =>
       routeHandlerWrapper(server.logInAsGuest, server.debug)(req, res));
@@ -123,7 +131,7 @@ export default class HotaruServer {
   }
 
 
-  static _freshUserObject(email, hashedPassword) {
+  static _freshUserObject(email?: string, hashedPassword?: string) {
     const now = new Date();
     return {
       email,
@@ -138,8 +146,8 @@ export default class HotaruServer {
   async logInAsGuest(_body) {
     const newInternalUser = await this.dbAdapter._internalSaveObject(
       '_User',
-      HotaruServer._freshUserObject(null, null, true),
-      { savingMode: SavingMode.CREATE_ONLY }
+      HotaruServer._freshUserObject(null, null),
+      { savingMode: SavingMode.CreateOnly }
     );
 
     // TODO If creating the session fails, we should delete the user and return an error
@@ -152,7 +160,7 @@ export default class HotaruServer {
         expiresAt: new Date('Jan 1, 2039'),
         // TODO installationId
       },
-      { savingMode: SavingMode.CREATE_ONLY }
+      { savingMode: SavingMode.CreateOnly }
     );
 
     const newUserData = stripInternalFields(newInternalUser);
@@ -179,12 +187,12 @@ export default class HotaruServer {
       throw new HotaruError(HotaruError.USER_ALREADY_EXISTS);
     }
 
-    const hashedPassword = bcrypt.hashSync(password, 10);
+    const hashedPassword = hashSync(password, 10);
 
     const newInternalUser = await this.dbAdapter._internalSaveObject(
       '_User',
-      HotaruServer._freshUserObject(email, hashedPassword, false),
-      { savingMode: SavingMode.CREATE_ONLY }
+      HotaruServer._freshUserObject(email, hashedPassword),
+      { savingMode: SavingMode.CreateOnly }
     );
 
     // TODO If creating the session fails, we should delete the user and return an error
@@ -197,7 +205,7 @@ export default class HotaruServer {
         expiresAt: new Date('Jan 1, 2039'),
         // TODO installationId
       },
-      { savingMode: SavingMode.CREATE_ONLY }
+      { savingMode: SavingMode.CreateOnly }
     );
 
     const newUserData = stripInternalFields(newInternalUser);
@@ -213,7 +221,7 @@ export default class HotaruServer {
     }
 
     user.set('email', email);
-    const hashedPassword = bcrypt.hashSync(password, 10);
+    const hashedPassword = hashSync(password, 10);
     user._internalSet('__hashedPassword', hashedPassword);
 
     const savedUser = await this.dbAdapter.saveUser(user);
@@ -233,7 +241,7 @@ export default class HotaruServer {
       throw new HotaruError(HotaruError.NO_USER_WITH_GIVEN_EMAIL_ADDRESS);
     }
 
-    if (!bcrypt.compareSync(password, internalUserData.__hashedPassword)) {
+    if (!compareSync(password, internalUserData.__hashedPassword)) {
       throw new HotaruError(HotaruError.INCORRECT_PASSWORD);
     }
 
@@ -246,7 +254,7 @@ export default class HotaruServer {
         expiresAt: new Date('Jan 1, 2039'),
         // TODO installationId
       },
-      { savingMode: SavingMode.CREATE_ONLY }
+      { savingMode: SavingMode.CreateOnly }
     );
     const strippedUserData = stripInternalFields(internalUserData);
 

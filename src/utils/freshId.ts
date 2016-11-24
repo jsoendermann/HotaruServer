@@ -2,7 +2,7 @@ import { randomBytes } from 'crypto';
 
 const ALPHANUM = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
-export function freshId(length = 15) { // eslint-disable-line import/prefer-default-export
+export default function freshId(length: number = 15): string {
   if (length < 1) {
     throw new Error('Ids must be at least one character long');
   }
