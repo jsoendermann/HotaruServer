@@ -1,6 +1,6 @@
-import Query from './Query';
+import Query from '../Query';
 import DbAdapter from './DbAdapter';
-import SavingOptions from './SavingOptions';
+import SavingOptions from '../SavingOptions';
 
 abstract class InternalDbAdapter extends DbAdapter {
   public abstract async internalFind(query: Query): Promise<Array<any>>;

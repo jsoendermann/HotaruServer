@@ -13,7 +13,7 @@ install();
 
 describe('MongoAdapter (saving)', function () {
   const Query = require('../lib/db/Query').default;
-  const { SavingMode } = require('../lib/db/MongoAdapter');
+  const { SavingMode } = require('../lib/db/adapters/MongoAdapter');
 
   beforeEach(async function () {
     this.adapter = await setUpMongoAdapterWithEmptyTestDb();

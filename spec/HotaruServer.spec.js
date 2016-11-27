@@ -20,7 +20,7 @@ const PORT = 3030;
 describe('HotaruServer', function () {
   const express = require('express');
   const HotaruServer = require('../lib/HotaruServer').default;
-  const MongoAdapter = require('../lib/db/MongoAdapter').MongoAdapter;
+  const MongoAdapter = require('../lib/db/adapters/MongoAdapter').MongoAdapter;
   const Query = require('../lib/db/Query').default;
   const { HotaruError } = require('hotaru');
 

@@ -11,9 +11,9 @@ import stripInternalFields from './utils/stripInternalFields';
 import parseJsonDates from './utils/parseJsonDates';
 import Query from './db//Query';
 import SavingMode from './db/SavingMode';
-import { MongoAdapter }  from './db/MongoAdapter';
-import DbAdapter from './db/DbAdapter';
-import InternalDbAdapter from './db/InternalDbAdapter';
+import { MongoAdapter }  from './db/adapters/MongoAdapter';
+import DbAdapter from './db/adapters/DbAdapter';
+import InternalDbAdapter from './db/adapters/InternalDbAdapter';
 
 const PACKAGE_VERSION = require(`${__dirname}/../package.json`).version; // eslint-disable-line
 

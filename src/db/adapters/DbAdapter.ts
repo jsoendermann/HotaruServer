@@ -1,8 +1,8 @@
-import Query from './Query';
+import Query from '../Query';
 import { isAlphanumeric } from 'validator';
 import { HotaruError, HotaruUser, UserDataStore } from 'hotaru';
-import SavingOptions from './SavingOptions';
-import SavingMode from './SavingMode';
+import SavingOptions from '../SavingOptions';
+import SavingMode from '../SavingMode';
 
 
 abstract class DbAdapter {

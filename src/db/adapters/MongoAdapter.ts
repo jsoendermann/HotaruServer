@@ -2,8 +2,8 @@ import { MongoClient, Db, Collection } from 'mongodb';
 import * as _ from 'lodash';
 import { isAlphanumeric } from 'validator';
 import { HotaruUser, HotaruError, UserDataStore } from 'hotaru';
-import freshId from '../utils/freshId';
-import stripInternalFields from '../utils/stripInternalFields';
+import freshId from '../../utils/freshId';
+import stripInternalFields from '../../utils/stripInternalFields';
 import InternalDbAdapter from './InternalDbAdapter';
 
 export enum SavingMode {
