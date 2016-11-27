@@ -1,4 +1,4 @@
-import MongoAdapter from '../../lib/MongoAdapter';
+import { MongoAdapter } from '../../lib/MongoAdapter';
 
 const TEST_DB_URI = 'mongodb://localhost:27017/hotaru_test';
 

@@ -140,7 +140,7 @@ describe('MongoAdapter (querying)', function () {
     const query = new Query('TestClass');
     query.greaterThanOrEqual('a', 10);
     query.ascending('a');
-    query.limit(2);
+    query.limit = 2;
     const objects = await this.adapter.find(query);
 
     expect(objects.map(o => o._id)).toEqual(['obj7', 'obj6']);
@@ -150,8 +150,8 @@ describe('MongoAdapter (querying)', function () {
     const query = new Query('TestClass');
     query.greaterThanOrEqual('a', 3);
     query.ascending('a');
-    query.limit(2);
-    query.skip(1);
+    query.limit = 2;
+    query.skip = 1;
     const objects = await this.adapter.find(query);
 
     expect(objects.map(o => o._id)).toEqual(['obj7', 'obj6']);

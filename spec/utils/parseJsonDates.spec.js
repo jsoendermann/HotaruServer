@@ -7,7 +7,7 @@ install();
 
 
 describe('parseJsonDates', function () {
-  const parseJsonDates = require('../../lib/utils').parseJsonDates;
+  const parseJsonDates = require('../../lib/utils/parseJsonDates').default;
 
 
   it('should handle empty objects', () => {

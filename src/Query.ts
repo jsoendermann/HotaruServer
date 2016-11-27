@@ -47,79 +47,98 @@ interface SortOperator {
 
 
 export default class Query {
-  private className: string;
-  private selectors: Selector[];
-  private sortOperators: SortOperator[];
+  private className_: string;
+  private selectors_: Selector[];
+  private sortOperators_: SortOperator[];
   private limit_?: number;
   private skip_?: number;
 
   constructor(className: string) {
-    this.className = className;
-    this.selectors = [];
-    this.sortOperators = [];
-    this.limit = null;
-    this.skip = null;
+    this.className_ = className;
+    this.selectors_ = [];
+    this.sortOperators_ = [];
+    this.limit_ = null;
+    this.skip_ = null;
+  }
+
+  get className(): string {
+    return this.className_;
   }
 
   equalTo(key: string, value: PrimitiveValue) {
-    this.selectors.push({ type: 'equalTo', key, value });
+    this.selectors_.push({ type: 'equalTo', key, value });
   }
 
   notEqualTo(key: string, value: PrimitiveValue) {
-    this.selectors.push({ type: 'notEqualTo', key, value });
+    this.selectors_.push({ type: 'notEqualTo', key, value });
   }
 
   lessThan(key: string, value: OrderedPrimitiveValue) {
-    this.selectors.push({ type: 'lessThan', key, value });
+    this.selectors_.push({ type: 'lessThan', key, value });
   }
 
   lessThanOrEqual(key: string, value: OrderedPrimitiveValue) {
-    this.selectors.push({ type: 'lessThanOrEqual', key, value });
+    this.selectors_.push({ type: 'lessThanOrEqual', key, value });
   }
 
   greaterThan(key: string, value: OrderedPrimitiveValue) {
-    this.selectors.push({ type: 'greaterThan', key, value });
+    this.selectors_.push({ type: 'greaterThan', key, value });
   }
 
   greaterThanOrEqual(key: string, value: OrderedPrimitiveValue) {
-    this.selectors.push({ type: 'greaterThanOrEqual', key, value });
+    this.selectors_.push({ type: 'greaterThanOrEqual', key, value });
   }
 
   containedIn(key: string, value: Array<PrimitiveValue>) {
-    this.selectors.push({ type: 'containedIn', key, value });
+    this.selectors_.push({ type: 'containedIn', key, value });
   }
 
   notContainedIn(key: string, value: Array<PrimitiveValue>) {
-    this.selectors.push({ type: 'notContainedIn', key, value });
+    this.selectors_.push({ type: 'notContainedIn', key, value });
   }
 
   mod(key: string, divisor: number, remainder: number) {
-    this.selectors.push({ type: 'mod', key, divisor, remainder });
+    this.selectors_.push({ type: 'mod', key, divisor, remainder });
   }
 
   regex(key: string, regex: string, options: string) {
-    this.selectors.push({ type: 'regex', key, regex, options });
+    this.selectors_.push({ type: 'regex', key, regex, options });
   }
 
   where(expressionString: string) {
-    this.selectors.push({ type: 'where', expressionString });
+    this.selectors_.push({ type: 'where', expressionString });
   }
+
+  get selectors(): Selector[] {
+    return this.selectors_;
+  } 
 
 
   ascending(key: string) {
-    this.sortOperators.push({ type: 'ascending', key });
+    this.sortOperators_.push({ type: 'ascending', key });
   }
 
   descending(key: string) {
-    this.sortOperators.push({ type: 'descending', key });
+    this.sortOperators_.push({ type: 'descending', key });
   }
 
+  get sortOperators(): SortOperator[] {
+    return this.sortOperators_;
+  }
 
-  limit(limit: number) {
+  get limit(): number {
+    return this.limit_;
+  }
+
+  set limit(limit: number) {
     this.limit_ = limit;
   }
 
-  skip(skip: number) {
+  get skip(): number {
+    return this.skip_;
+  }
+
+  set skip(skip: number) {
     this.skip_ = skip;
   }
 }

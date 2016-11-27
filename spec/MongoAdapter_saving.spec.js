@@ -13,7 +13,7 @@ install();
 
 describe('MongoAdapter (saving)', function () {
   const Query = require('../lib/Query').default;
-  const { SavingMode } = require('../lib/utils');
+  const { SavingMode } = require('../lib/MongoAdapter');
 
   beforeEach(async function () {
     this.adapter = await setUpMongoAdapterWithEmptyTestDb();
@@ -63,16 +63,6 @@ describe('MongoAdapter (saving)', function () {
     expect(secondObject._id).toBeAnAlphanumericString(15);
   });
 
-  it('should not accept invalid saving modes', async function () {
-    const object = { a: 1 };
-
-    const e1 = await catchError(this.adapter.saveObject('ClassName', object, { savingMode: null }));
-    const e2 = await catchError(this.adapter.saveObject('ClassName', object, { savingMode: Symbol('asrt') }));
-    const e3 = await catchError(this.adapter.saveObject('ClassName', object, { savingMode: 1 }));
-
-    [e1, e2, e3].forEach(e => expect(e).toMatch(/Unknown saving mode/));
-  });
-
   it('should protect internal classes', async function () {
     const error = await catchError(this.adapter.saveObject('_Arst', { a: 1 }));
 
@@ -88,7 +78,7 @@ describe('MongoAdapter (saving)', function () {
   it('should not create new objects in UPDATE_ONLY savingMode', async function () {
     const object = { a: 1 };
 
-    const error = await catchError(this.adapter.saveObject('TestClass', object, { savingMode: SavingMode.UPDATE_ONLY }));
+    const error = await catchError(this.adapter.saveObject('TestClass', object, { savingMode: SavingMode.UpdateOnly }));
     expect(error).toMatch(/Can not create new objet in UPDATE_ONLY savingMode/);
   });
 
@@ -100,14 +90,14 @@ describe('MongoAdapter (saving)', function () {
   });
 
   it('should not accept objects without id in UPDATE_ONLY savingMode', async function () {
-    const error = await catchError(this.adapter.saveAll('TestClass', [{ a: 1 }], { savingMode: SavingMode.UPDATE_ONLY }));
+    const error = await catchError(this.adapter.saveAll('TestClass', [{ a: 1 }], { savingMode: SavingMode.UpdateOnly }));
     expect(error).toMatch(/Can not create new objet in UPDATE_ONLY savingMode/);
   });
 
   it('should accept custom _ids and generate fresh ones for other objects', async function () {
     const objects = [{ _id: 'bla', a: 1 }, { a: 2 }];
 
-    const [o1, o2] = await this.adapter.saveAll('TestClass', objects, { savingMode: SavingMode.CREATE_ONLY });
+    const [o1, o2] = await this.adapter.saveAll('TestClass', objects, { savingMode: SavingMode.CreateOnly });
 
     if (o1._id === 'bla') {
       expect(o2._id).toBeAnAlphanumericString(15);
@@ -120,12 +110,12 @@ describe('MongoAdapter (saving)', function () {
   it('should not overwrite existing objects in CREATE_ONLY savingMode', async function () {
     const obj = { _id: 'testid', a: 1 };
     await this.adapter.saveObject('TestClass', obj);
-    const error = await catchError(this.adapter.saveObject('TestClass', obj, { savingMode: SavingMode.CREATE_ONLY }));
+    const error = await catchError(this.adapter.saveObject('TestClass', obj, { savingMode: SavingMode.CreateOnly }));
     expect(error).toMatch(/Can not overwrite object in CREATE_ONLY savingMode/);
   });
 
   it('should not create new objects in UPDATE_ONLY savingMode', async function () {
-    const error = await catchError(this.adapter.saveObject('TestClass', { a: 1 }, { savingMode: SavingMode.UPDATE_ONLY }));
+    const error = await catchError(this.adapter.saveObject('TestClass', { a: 1 }, { savingMode: SavingMode.UpdateOnly }));
     expect(error).toMatch(/Can not create new objet in UPDATE_ONLY savingMode/);
   });
 

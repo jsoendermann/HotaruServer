@@ -1,4 +1,4 @@
-import { MongoClient, Db } from 'mongodb';
+import { MongoClient, Db, Collection } from 'mongodb';
 import * as _ from 'lodash';
 import { isAlphanumeric } from 'validator';
 import { HotaruUser, HotaruError, UserDataStore } from 'hotaru';
@@ -44,18 +44,18 @@ export class MongoAdapter {
   }
 
 
-  async _getCollection(collectionName) {
+  async _getCollection(collectionName: string): Promise<Collection> {
     const db = await this._getDb();
     return db.collection(collectionName);
   }
 
 
-  async _getUserCollection() {
+  async _getUserCollection(): Promise<Collection> {
     return this._getCollection('_User');
   }
 
 
-  async _getSessionCollection() {
+  async _getSessionCollection(): Promise<Collection> {
     return this._getCollection('_Session');
   }
 
@@ -129,16 +129,16 @@ export class MongoAdapter {
 
 
   async _internalFind(query) {
-    const collection = await this._getCollection(query._className);
+    const collection = await this._getCollection(query.className);
 
     let objectsPromise = collection
-      .find(MongoAdapter._convertQuerySelectors(query._selectors))
-      .sort(MongoAdapter._convertQuerySortOperators(query._sortOperators));
-    if (query._limit) {
-      objectsPromise = objectsPromise.limit(query._limit);
+      .find(MongoAdapter._convertQuerySelectors(query.selectors))
+      .sort(MongoAdapter._convertQuerySortOperators(query.sortOperators));
+    if (query.limit) {
+      objectsPromise = objectsPromise.limit(query.limit);
     }
-    if (query._skip) {
-      objectsPromise = objectsPromise.skip(query._skip);
+    if (query.skip) {
+      objectsPromise = objectsPromise.skip(query.skip);
     }
     const objects = await objectsPromise.toArray();
 
@@ -153,14 +153,14 @@ export class MongoAdapter {
 
 
   async _internalFirst(query) {
-    query.limit(1);
+    query.limit = 1;
     const [object]  = await this._internalFind(query);
     return object || null;
   }
 
 
   async first(query) {
-    query.limit(1);
+    query.limit = 1;
     const [object]  = await this.find(query);
     return object || null;
   }
@@ -176,16 +176,16 @@ export class MongoAdapter {
     // If we are in UpdateOnly mode, every object has to have an _id
     if (savingMode === SavingMode.UpdateOnly &&
       objects.includes(obj => obj._id === undefined)) {
-      throw new HotaruError(HotaruError.OBJECT_WITHOUT_ID_IN_UpdateOnly_SAVING_MODE);
+      throw new HotaruError(HotaruError.OBJECT_WITHOUT_ID_IN_UPDATE_ONLY_SAVING_MODE);
     }
 
     const collection = await this._getCollection(className);
     const existingObjects = await collection.find({ _id: { $in: oldIds } }).toArray();
 
     if (savingMode === SavingMode.CreateOnly && existingObjects.length > 0) {
-      throw new HotaruError(HotaruError.CAN_NOT_OVERWRITE_OBJECT_IN_CreateOnly_SAVING_MODE);
+      throw new HotaruError(HotaruError.CAN_NOT_OVERWRITE_OBJECT_IN_CREATE_ONLY_SAVING_MODE);
     } else if (savingMode === SavingMode.UpdateOnly && existingObjects.length !== objects.length) {
-      throw new HotaruError(HotaruError.CAN_NOT_CREATE_NEW_OBJECT_IN_UpdateOnly_SAVING_MODE);
+      throw new HotaruError(HotaruError.CAN_NOT_CREATE_NEW_OBJECT_IN_UPDATE_ONLY_SAVING_MODE);
     }
 
     const oldAndNewIds = [];
@@ -273,7 +273,7 @@ export class MongoAdapter {
   }
 
 
-  async _internalDeleteAll(className, objects) {
+  async _internalDeleteAll(className, objects): Promise<boolean> {
     const ids = [];
     for (const object of objects) {
       if (object._id === undefined) {

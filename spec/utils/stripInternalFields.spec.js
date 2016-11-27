@@ -1,7 +1,7 @@
 /* global describe, it, expect */
 /* eslint prefer-arrow-callback:0, func-names:0, global-require:0 */
 
-const stripInternalFields = require('../../lib/utils').stripInternalFields;
+const stripInternalFields = require('../../lib/utils/stripInternalFields').default;
 
 describe('stripInternalFields', function () {
   it('should strip internal fields', function () {
