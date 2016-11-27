@@ -64,9 +64,11 @@ describe('MongoAdapter (saving)', function () {
   });
 
   it('should protect internal classes', async function () {
-    const error = await catchError(this.adapter.saveObject('_Arst', { a: 1 }));
-
-    expect(error).toMatch(/Invalid class name/);
+    try {
+      await this.adapter.saveObject('_Arst', { a: 1 });
+    } catch (error) {
+      expect(error).toMatch(/Invalid class name/);
+    }
   });
 
   it('should allow saving to internal classes with internalSaveObject', async function () {
