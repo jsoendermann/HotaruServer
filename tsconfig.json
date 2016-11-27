@@ -2,7 +2,11 @@
   "include": [
     "./**/*.ts"
   ],
+  "exclude": [
+    "node_modules"
+  ],
   "compilerOptions": {
-    "target": "es6"
+    "target": "es6",
+    "moduleResolution": "node"
   }
 }
