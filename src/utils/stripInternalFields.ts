@@ -1,4 +1,4 @@
-export default function stripInternalFields(obj: Object): Object {  // eslint-disable-line import/prefer-default-export
+export default function stripInternalFields(obj: any): any {  // eslint-disable-line import/prefer-default-export
   const ret = {};
 
   for (const attribute of Object.keys(obj)) {

@@ -19,11 +19,11 @@
     "hotaru": "^0.1.0",
     "lodash": "^4.16.4",
     "mongodb": "^2.2.10",
-    "semaphore-async-await": "^1.0.2",
+    "semaphore-async-await": "^1.1.2",
     "validator": "^6.1.0"
   },
   "scripts": {
-    "build": "babel src -d lib",
+    "build": "gulp",
     "prepublish": "npm run build",
     "test": "node_modules/jasmine-es6/bin/jasmine.js"
   },

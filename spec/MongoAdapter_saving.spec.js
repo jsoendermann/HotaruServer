@@ -12,8 +12,8 @@ import setUpMongoAdapterWithEmptyTestDb from './helpers/setUpMongoAdapterWithEmp
 install();
 
 describe('MongoAdapter (saving)', function () {
-  const Query = require('../lib/Query').default;
-  const { SavingMode } = require('../lib/MongoAdapter');
+  const Query = require('../lib/db/Query').default;
+  const { SavingMode } = require('../lib/db/MongoAdapter');
 
   beforeEach(async function () {
     this.adapter = await setUpMongoAdapterWithEmptyTestDb();
@@ -27,7 +27,7 @@ describe('MongoAdapter (saving)', function () {
     const error = await catchError(this.adapter.saveUser(new HotaruUser(new UserDataStore(userData))));
     expect(error).toMatch(/Can not create new objet in UPDATE_ONLY savingMode/);
 
-    const savedUserData1 = await this.adapter._internalSaveObject(
+    const savedUserData1 = await this.adapter.internalSaveObject(
       '_User',
       userData,
       { savingMode: SavingMode.CREATE_ONLY }
@@ -69,8 +69,8 @@ describe('MongoAdapter (saving)', function () {
     expect(error).toMatch(/Invalid class name/);
   });
 
-  it('should allow saving to internal classes with _internalSaveObject', async function () {
-    const object = await this.adapter._internalSaveObject('_Arst', { a: 1 });
+  it('should allow saving to internal classes with internalSaveObject', async function () {
+    const object = await this.adapter.internalSaveObject('_Arst', { a: 1 });
 
     expect(object._id).toBeAnAlphanumericString(15);
   });
@@ -128,7 +128,7 @@ describe('MongoAdapter (saving)', function () {
 
     const query = new Query('TestClass');
     query.equalTo('_id', 'id');
-    const fetchedObject = await this.adapter._internalFirst(query);
+    const fetchedObject = await this.adapter.internalFirst(query);
 
     expect(fetchedObject.__internalField).toEqual(42);
     expect(fetchedObject.a).toEqual(2);
@@ -142,7 +142,7 @@ describe('MongoAdapter (saving)', function () {
 
   it('should not strip internal fields when saving with an _internal method', async function () {
     const obj = { _id: 'id', __internalField: 42, a: 1 };
-    const savedObject = await this.adapter._internalSaveObject('TestClass', obj);
+    const savedObject = await this.adapter.internalSaveObject('TestClass', obj);
     expect(savedObject.__internalField).toEqual(42);
   });
 });

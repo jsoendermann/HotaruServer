@@ -14,4 +14,6 @@ gulp.task('default', () => {
     .pipe(gulp.dest('lib'));
 });
 
-gulp.watch('src/**/*.ts', ['default']);
+gulp.task('watch', () => {
+  gulp.watch('src/**/*.ts', ['default']);
+});

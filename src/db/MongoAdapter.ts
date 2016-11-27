@@ -2,8 +2,9 @@ import { MongoClient, Db, Collection } from 'mongodb';
 import * as _ from 'lodash';
 import { isAlphanumeric } from 'validator';
 import { HotaruUser, HotaruError, UserDataStore } from 'hotaru';
-import freshId from './utils/freshId';
-import stripInternalFields from './utils/stripInternalFields';
+import freshId from '../utils/freshId';
+import stripInternalFields from '../utils/stripInternalFields';
+import InternalDbAdapter from './InternalDbAdapter';
 
 export enum SavingMode {
   Upsert,
@@ -11,16 +12,30 @@ export enum SavingMode {
   UpdateOnly
 }
 
-export class MongoAdapter {
+export class MongoAdapter extends InternalDbAdapter {
   private uri: string;
   private connectionPromise: Promise<Db>;
 
+  protected stripInternalFields(object: any): any {
+    const ret = {};
+
+    for (const attribute of Object.keys(object)) {
+      if (!attribute.startsWith('__')) {
+        ret[attribute] = object[attribute];
+      }
+    }
+
+    return ret;
+  }
+
   constructor({ uri }) {
+    super();
+
     this.uri = uri;
   }
 
 
-  async _getDb() {
+  private async getDb() {
     if (this.connectionPromise) {
       return this.connectionPromise;
     }
@@ -44,23 +59,23 @@ export class MongoAdapter {
   }
 
 
-  async _getCollection(collectionName: string): Promise<Collection> {
-    const db = await this._getDb();
+  private async getCollection(collectionName: string): Promise<Collection> {
+    const db = await this.getDb();
     return db.collection(collectionName);
   }
 
 
-  async _getUserCollection(): Promise<Collection> {
-    return this._getCollection('_User');
+  private async getUserCollection(): Promise<Collection> {
+    return this.getCollection('_User');
   }
 
 
-  async _getSessionCollection(): Promise<Collection> {
-    return this._getCollection('_Session');
+  private async getSessionCollection(): Promise<Collection> {
+    return this.getCollection('_Session');
   }
 
 
-  static _convertQuerySelectors(selectors): any {
+  private static convertQuerySelectors(selectors): any {
     const mongoSelectors = [];
 
     for (const selector of selectors) {
@@ -109,7 +124,7 @@ export class MongoAdapter {
   }
 
 
-  static _convertQuerySortOperators(sortOperators) {
+  private static convertQuerySortOperators(sortOperators) {
     const mongoSortOperators = [];
 
     for (const sortOperator of sortOperators) {
@@ -128,12 +143,13 @@ export class MongoAdapter {
   }
 
 
-  async _internalFind(query) {
-    const collection = await this._getCollection(query.className);
+  public async internalFind(query) {
+    const collection = await this.getCollection(query.className);
 
     let objectsPromise = collection
-      .find(MongoAdapter._convertQuerySelectors(query.selectors))
-      .sort(MongoAdapter._convertQuerySortOperators(query.sortOperators));
+      .find(MongoAdapter.
+  convertQuerySelectors(query.selectors))
+      .sort(MongoAdapter.convertQuerySortOperators(query.sortOperators));
     if (query.limit) {
       objectsPromise = objectsPromise.limit(query.limit);
     }
@@ -146,27 +162,13 @@ export class MongoAdapter {
   }
 
 
-  async find(query) {
-    const objects = await this._internalFind(query);
-    return objects.map(obj => stripInternalFields(obj));
-  }
-
-
-  async _internalFirst(query) {
+  public async internalFirst(query) {
     query.limit = 1;
-    const [object]  = await this._internalFind(query);
+    const [object] = await this.internalFind(query);
     return object || null;
   }
 
-
-  async first(query) {
-    query.limit = 1;
-    const [object]  = await this.find(query);
-    return object || null;
-  }
-
-
-  async _internalSaveAll(className, objects, { savingMode = SavingMode.Upsert } = {}) {
+  public async internalSaveAll(className, objects, { savingMode = SavingMode.Upsert } = {}) {
     // Make sure objects does not contain the same existing object more than once
     const oldIds = objects.map(obj => obj._id).filter(id => id !== undefined);
     if (_.uniq(oldIds).length < oldIds.length) {
@@ -179,7 +181,7 @@ export class MongoAdapter {
       throw new HotaruError(HotaruError.OBJECT_WITHOUT_ID_IN_UPDATE_ONLY_SAVING_MODE);
     }
 
-    const collection = await this._getCollection(className);
+    const collection = await this.getCollection(className);
     const existingObjects = await collection.find({ _id: { $in: oldIds } }).toArray();
 
     if (savingMode === SavingMode.CreateOnly && existingObjects.length > 0) {
@@ -224,56 +226,15 @@ export class MongoAdapter {
   }
 
 
-  async saveAll(className, objects, { savingMode = SavingMode.Upsert } = {}) {
-    if (!(isAlphanumeric(className))) {
-      throw new HotaruError(HotaruError.INVALID_CLASS_NAME, className);
-    }
 
-    const savedObjects = await this._internalSaveAll(className, objects, { savingMode });
-    return savedObjects.map(obj => stripInternalFields(obj));
-  }
-
-
-  async _internalSaveObject(className, object, { savingMode = SavingMode.Upsert } = {}) {
-    const [savedObject] = await this._internalSaveAll(className, [object], { savingMode });
+  public async internalSaveObject(className, object, { savingMode = SavingMode.Upsert } = {}) {
+    const [savedObject] = await this.internalSaveAll(className, [object], { savingMode });
     return savedObject;
   }
 
 
-  async saveObject(className, object, { savingMode = SavingMode.Upsert } = {}) {
-    const [savedObject] = await this.saveAll(className, [object], { savingMode });
-    return savedObject;
-  }
 
-
-  async saveUser(user) {
-    const data = user._getDataStore().getRawData();
-    data.__changelog = user._getDataStore().getChangelog();
-    const savedUserData = await this._internalSaveObject('_User', data, { savingMode: SavingMode.UpdateOnly });
-    return new HotaruUser(new UserDataStore(savedUserData, savedUserData.__changelog));
-  }
-
-
-  async deleteObject(className, object) {
-    return this.deleteAll(className, [object]);
-  }
-
-
-  async _internalDeleteObject(className, object) {
-    return this._internalDeleteAll(className, [object]);
-  }
-
-
-  async deleteAll(className, objects) {
-    if (!(isAlphanumeric(className))) {
-      throw new HotaruError(HotaruError.INVALID_CLASS_NAME, className);
-    }
-
-    return this._internalDeleteAll(className, objects);
-  }
-
-
-  async _internalDeleteAll(className, objects): Promise<boolean> {
+  public async internalDeleteAll(className, objects): Promise<boolean> {
     const ids = [];
     for (const object of objects) {
       if (object._id === undefined) {
@@ -287,8 +248,15 @@ export class MongoAdapter {
       throw new HotaruError(HotaruError.CAN_NOT_DELETE_TWO_OBJECTS_WITH_SAME_ID);
     }
 
-    const collection = await this._getCollection(className);
+    const collection = await this.getCollection(className);
     const result = await collection.deleteMany({ _id: { $in: ids } });
     return result.result.ok === 1;
   }
+
+  public async internalDeleteObject(className, object) {
+    return this.internalDeleteAll(className, [object]);
+  }
+
+
+
 }

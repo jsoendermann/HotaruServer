@@ -9,8 +9,11 @@ import { HotaruError, HotaruUser, UserDataStore } from 'hotaru';
 import freshId from './utils/freshId';
 import stripInternalFields from './utils/stripInternalFields';
 import parseJsonDates from './utils/parseJsonDates';
-import Query from './Query';
-import { MongoAdapter, SavingMode }  from './MongoAdapter';
+import Query from './db//Query';
+import SavingMode from './db/SavingMode';
+import { MongoAdapter }  from './db/MongoAdapter';
+import DbAdapter from './db/DbAdapter';
+import InternalDbAdapter from './db/InternalDbAdapter';
 
 const PACKAGE_VERSION = require(`${__dirname}/../package.json`).version; // eslint-disable-line
 
@@ -50,7 +53,7 @@ function loggedInRouteHandlerWrapper(loggedInRouteHandler, dbAdapter) {
 
     const sessionQuery = new Query('_Session');
     sessionQuery.equalTo('_id', sessionId);
-    const session = await dbAdapter._internalFirst(sessionQuery);
+    const session = await dbAdapter.internalFirst(sessionQuery);
 
     if (session === null) {
       throw new HotaruError(HotaruError.SESSION_NOT_FOUND);
@@ -60,13 +63,13 @@ function loggedInRouteHandlerWrapper(loggedInRouteHandler, dbAdapter) {
     try {
       const userQuery = new Query('_User');
       userQuery.equalTo('_id', session.userId);
-      const userData = await dbAdapter._internalFirst(userQuery);
+      const userData = await dbAdapter.internalFirst(userQuery);
 
       if (userData === null) {
         // This is weird, the user must've gotten deleted after the session was created.
         // The best course of action here is probably to delete the session and pretend
         // it didn't exist
-        await dbAdapter._internalDeleteObject('_Session', session);
+        await dbAdapter.internalDeleteObject('_Session', session);
         throw new HotaruError(HotaruError.SESSION_NOT_FOUND);
       }
 
@@ -81,15 +84,28 @@ function loggedInRouteHandlerWrapper(loggedInRouteHandler, dbAdapter) {
   };
 }
 
+type CloudFunction = {
+  name: string, 
+  func: (dbAdapter: DbAdapter, user: HotaruUser, params: any, installationDetails: any) => any
+};
 
+interface ConstructorParameters {
+  dbAdapter: InternalDbAdapter;
+  cloudFunctions: Array<CloudFunction>;
+  validatePassword: (password: string) => boolean;
+  debug: boolean;
+}
+  const validatePassword = (p:string) => p.length > 6;
 export default class HotaruServer {
 
-  private dbAdapter: MongoAdapter;
-  private cloudFunctions: Array<{name: string, func: (dbAdapter: MongoAdapter, user: HotaruUser, params: any, installationDetails: any) => any}>;
+  private dbAdapter: InternalDbAdapter;
+  private cloudFunctions: Array<CloudFunction>;
   private validatePassword: (password: string) => boolean;
   private debug: boolean;
 
-  constructor({ dbAdapter, cloudFunctions, validatePassword = p => p.length > 6, debug = false }) {
+
+
+  constructor({ dbAdapter, cloudFunctions, validatePassword = p => p.length > 6, debug = false }: ConstructorParameters) {
     this.dbAdapter = dbAdapter;
     this.cloudFunctions = cloudFunctions;
     this.validatePassword = validatePassword;
@@ -100,7 +116,7 @@ export default class HotaruServer {
 
 
   static createServer({ dbAdapter, cloudFunctions, debug = false }) {
-    const server = new HotaruServer({ dbAdapter, cloudFunctions, debug });
+    const server = new HotaruServer({ dbAdapter, cloudFunctions, validatePassword, debug });
     const router = Router({ caseSensitive: true }); // eslint-disable-line new-cap
     router.use(json());
 
@@ -144,14 +160,14 @@ export default class HotaruServer {
 
 
   async logInAsGuest(_body) {
-    const newInternalUser = await this.dbAdapter._internalSaveObject(
+    const newInternalUser = await this.dbAdapter.internalSaveObject(
       '_User',
       HotaruServer._freshUserObject(null, null),
       { savingMode: SavingMode.CreateOnly }
     );
 
     // TODO If creating the session fails, we should delete the user and return an error
-    const newSession = await this.dbAdapter._internalSaveObject(
+    const newSession = await this.dbAdapter.internalSaveObject(
       '_Session',
       {
         _id: freshId(32),
@@ -181,7 +197,7 @@ export default class HotaruServer {
 
     const existingUserQuery = new Query('_User');
     existingUserQuery.equalTo('email', email);
-    const existingUser = await this.dbAdapter.first(existingUserQuery);
+    const existingUser = await this.dbAdapter.internalFirst(existingUserQuery);
 
     if (existingUser !== null) {
       throw new HotaruError(HotaruError.USER_ALREADY_EXISTS);
@@ -189,14 +205,14 @@ export default class HotaruServer {
 
     const hashedPassword = hashSync(password, 10);
 
-    const newInternalUser = await this.dbAdapter._internalSaveObject(
+    const newInternalUser = await this.dbAdapter.internalSaveObject(
       '_User',
       HotaruServer._freshUserObject(email, hashedPassword),
       { savingMode: SavingMode.CreateOnly }
     );
 
     // TODO If creating the session fails, we should delete the user and return an error
-    const newSession = await this.dbAdapter._internalSaveObject(
+    const newSession = await this.dbAdapter.internalSaveObject(
       '_Session',
       {
         _id: freshId(32),
@@ -235,7 +251,7 @@ export default class HotaruServer {
 
     const userQuery = new Query('_User');
     userQuery.equalTo('email', email);
-    const internalUserData = await this.dbAdapter._internalFirst(userQuery);
+    const internalUserData = await this.dbAdapter.internalFirst(userQuery);
 
     if (internalUserData === null) {
       throw new HotaruError(HotaruError.NO_USER_WITH_GIVEN_EMAIL_ADDRESS);
@@ -245,7 +261,7 @@ export default class HotaruServer {
       throw new HotaruError(HotaruError.INCORRECT_PASSWORD);
     }
 
-    const newSession = await this.dbAdapter._internalSaveObject(
+    const newSession = await this.dbAdapter.internalSaveObject(
       '_Session',
       {
         _id: freshId(32),
@@ -265,13 +281,13 @@ export default class HotaruServer {
   async logOut(_body, sessionId, _user) {
     const sessionQuery = new Query('_Session');
     sessionQuery.equalTo('_id', sessionId);
-    const session = await this.dbAdapter._internalFirst(sessionQuery);
+    const session = await this.dbAdapter.internalFirst(sessionQuery);
 
     if (session === null) {
       throw new HotaruError(HotaruError.SESSION_NOT_FOUND);
     }
 
-    const success = await this.dbAdapter._internalDeleteObject('_Session', session);
+    const success = await this.dbAdapter.internalDeleteObject('_Session', session);
 
     if (!success) {
       throw new HotaruError(HotaruError.LOGOUT_FAILED);

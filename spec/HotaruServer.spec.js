@@ -20,8 +20,8 @@ const PORT = 3030;
 describe('HotaruServer', function () {
   const express = require('express');
   const HotaruServer = require('../lib/HotaruServer').default;
-  const MongoAdapter = require('../lib/MongoAdapter').MongoAdapter;
-  const Query = require('../lib/Query').default;
+  const MongoAdapter = require('../lib/db/MongoAdapter').MongoAdapter;
+  const Query = require('../lib/db/Query').default;
   const { HotaruError } = require('hotaru');
 
   beforeAll(async function () {
@@ -34,7 +34,7 @@ describe('HotaruServer', function () {
       schema: null,
     });
 
-    const db = await this.dbAdapter._getDb();
+    const db = await this.dbAdapter.getDb();
     await db.dropDatabase();
 
     const server = HotaruServer.createServer({
@@ -211,7 +211,7 @@ describe('HotaruServer', function () {
   });
 
   it('should handle sessionIds of non-existing users', async function () {
-    await this.dbAdapter._internalSaveObject(
+    await this.dbAdapter.internalSaveObject(
       '_Session',
       {
         _id: 'SESSION_ID',
@@ -224,7 +224,6 @@ describe('HotaruServer', function () {
     const response = await axios.post(`http://localhost:${PORT}/api/_logOut`, {
       sessionId: 'SESSION_ID',
     });
-
     expect(response.data.status).toEqual('error');
     expect(response.data.code).toEqual(HotaruError.SESSION_NOT_FOUND);
   });

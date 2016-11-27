@@ -8,7 +8,7 @@ import setUpMongoAdapterWithEmptyTestDb from './helpers/setUpMongoAdapterWithEmp
 // TODO createdAt, updatedAt
 
 describe('MongoAdapter (querying)', function () {
-  const Query = require('../lib/Query').default;
+  const Query = require('../lib/db/Query').default;
 
   const TEST_OBJECTS = [
     { _id: 'obj1', a: 1, b: 'test', c: [1, 2], __internal: 'bla' },
@@ -176,7 +176,7 @@ describe('MongoAdapter (querying)', function () {
   it('should not strip internal fields when using _internalFind', async function () {
     const query = new Query('TestClass');
     query.equalTo('_id', 'obj1');
-    const obj = await this.adapter._internalFirst(query);
+    const obj = await this.adapter.internalFirst(query);
 
     expect(obj.__internal).not.toBeUndefined();
   });

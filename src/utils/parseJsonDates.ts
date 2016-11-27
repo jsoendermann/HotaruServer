@@ -6,14 +6,14 @@ function isISO8601DateString(str: string): boolean {
   return iso8601DatesRegex.test(str);
 }
 
-function convertValue(value) {
+function convertValue(value: any) {
   if (typeof value === 'string' && isISO8601DateString(value)) {
     return new Date(value);
   }
   return value;
 }
 
-function convertObject(obj) {
+function convertObject(obj: any) {
   for (const attr of Object.keys(obj)) {
     if (obj[attr] !== null && typeof obj[attr] === 'object') {
       obj[attr] = convertObject(obj[attr]);
@@ -24,7 +24,7 @@ function convertObject(obj) {
   return obj;
 }
 
-export default function parseJsonDates(objOrg) {
+export default function parseJsonDates(objOrg: any) {
   const obj = _.cloneDeep(objOrg);
   convertObject(obj);
   return obj;
