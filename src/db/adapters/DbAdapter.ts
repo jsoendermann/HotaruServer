@@ -31,15 +31,15 @@ function denyInternalClassQuery(klass: any, key: string, descriptor: any) {
 abstract class DbAdapter {
   protected abstract stripInternalFields(object: any): any;
 
-  protected abstract async internalFind(query: Query): Promise<Array<any>>;
+  protected abstract async internalFind(query: Query): Promise<any[]>;
   protected abstract async internalFirst(query: Query): Promise<any>;
-  protected abstract async internalSaveAll(className: string, objects: Array<any>, options: SavingOptions): Promise<Array<any>>;
+  protected abstract async internalSaveAll(className: string, objects: any[], options: SavingOptions): Promise<any[]>;
   protected abstract async internalSaveObject(className: string, object: any, options: SavingOptions): Promise<any>;
-  protected abstract async internalDeleteAll(className: string, objects: Array<any>): Promise<boolean>;
+  protected abstract async internalDeleteAll(className: string, objects: any[]): Promise<boolean>;
   protected abstract async internalDeleteObject(className: string, object: any): Promise<boolean>;
 
   @denyInternalClassQuery
-  public async find(query: Query): Promise<Array<any>> {
+  public async find(query: Query): Promise<any[]> {
     const objects = await this.internalFind(query);
     return objects.map(obj => this.stripInternalFields(obj));
   }
@@ -56,9 +56,9 @@ abstract class DbAdapter {
   @denyInternalClassAccess
   public async saveAll(
     className: string,
-    objects: Array<any>,
+    objects: any[],
     options: SavingOptions = { savingMode: SavingMode.Upsert }
-  ): Promise<Array<any>> {
+  ): Promise<any[]> {
     const savedObjects = await this.internalSaveAll(className, objects, options);
     return savedObjects.map(obj => this.stripInternalFields(obj));
   }
@@ -83,7 +83,7 @@ abstract class DbAdapter {
   }
 
   @denyInternalClassAccess
-  public async deleteAll(className: string, objects: Array<any>): Promise<boolean> {
+  public async deleteAll(className: string, objects: any[]): Promise<boolean> {
     return this.internalDeleteAll(className, objects);
   }
 
