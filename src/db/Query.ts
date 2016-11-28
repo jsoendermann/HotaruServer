@@ -16,7 +16,7 @@ interface ComparisonSelector {
 interface ContainmentSelector {
   type: 'containedIn' | 'notContainedIn';
   key: string;
-  value: Array<PrimitiveValue>;
+  value: PrimitiveValue[];
 }
 
 interface ModSelector {
