@@ -17,73 +17,6 @@ import InternalDbAdapter from './db/adapters/InternalDbAdapter';
 const PACKAGE_VERSION = require(`${__dirname}/../package.json`).version; // eslint-disable-line
 
 
-const locks: { [userId: string]: Semaphore } = defaultdict(() => new Semaphore(1)) as any as { [userId: string]: Semaphore };
-
-// This should eventually be a decorator
-function routeHandlerWrapper(routeHandler: (body: any) => any, debug = false) {
-  return async (req: Request, res: Response) => {
-    res.setHeader('Content-Type', 'application/json');
-
-    const body = parseJsonDates(req.body);
-
-    try {
-      const result = await routeHandler(body);
-      res.send(JSON.stringify({ status: 'ok', result, serverVersion: PACKAGE_VERSION }));
-    } catch (error) {
-      let response;
-      if (error instanceof HotaruError) {
-        response = { status: 'error', code: error.code, message: error.message };
-      } else if (debug) {
-        response = { status: 'error', code: -1, message: error.toString(), stack: error.stack };
-      } else {
-        response = { status: 'error', code: -1, message: 'Internal error' };
-      }
-      res.send(JSON.stringify(response));
-    }
-  };
-}
-
-function loggedInRouteHandlerWrapper(loggedInRouteHandler: (body: any, sessionId: string, user: HotaruUser) => any, dbAdapter: InternalDbAdapter) {
-  return async (body: any) => {
-    const { sessionId } = body;
-
-    if (sessionId === undefined) {
-      throw new HotaruError(HotaruError.NOT_LOGGED_IN);
-    }
-
-    const sessionQuery = new Query('_Session');
-    sessionQuery.equalTo('_id', sessionId);
-    const session = await dbAdapter.internalFirst(sessionQuery);
-
-    if (session === null) {
-      throw new HotaruError(HotaruError.SESSION_NOT_FOUND);
-    }
-
-    await locks[session.userId].wait();
-    try {
-      const userQuery = new Query('_User');
-      userQuery.equalTo('_id', session.userId);
-      const userData = await dbAdapter.internalFirst(userQuery);
-
-      if (userData === null) {
-        // This is weird, the user must've gotten deleted after the session was created.
-        // The best course of action here is probably to delete the session and pretend
-        // it didn't exist
-        await dbAdapter.internalDeleteObject('_Session', session);
-        throw new HotaruError(HotaruError.SESSION_NOT_FOUND);
-      }
-
-      const user = new HotaruUser(new UserDataStore(userData, userData.__changelog));
-
-      // await is necessary because loggedInRouteHandler has to finish executing before
-      // we release the lock.
-      return await loggedInRouteHandler(body, sessionId, user);
-    } finally {
-      locks[session.userId].signal();
-    }
-  };
-}
-
 type CloudFunction = {
   name: string,
   func: (dbAdapter: DbAdapter, user: HotaruUser, params: any, installationDetails: any) => any
@@ -96,44 +29,107 @@ interface ConstructorParameters {
   debug: boolean;
 }
 
-const validatePasswordDefault = (p: string) => p.length > 6;
-
 export default class HotaruServer {
   private dbAdapter: InternalDbAdapter;
   private cloudFunctions: Array<CloudFunction>;
   private validatePassword: (password: string) => boolean;
   private debug: boolean;
 
+  private locks: { [userId: string]: Semaphore } = defaultdict(() => new Semaphore(1)) as any as { [userId: string]: Semaphore };
 
-
-  constructor({ dbAdapter, cloudFunctions, validatePassword = validatePasswordDefault, debug }: ConstructorParameters) {
+  constructor({ dbAdapter, cloudFunctions, validatePassword, debug }: ConstructorParameters) {
     this.dbAdapter = dbAdapter;
     this.cloudFunctions = cloudFunctions;
     this.validatePassword = validatePassword;
     this.debug = debug;
 
-    _.bindAll(this, ['logInAsGuest', 'signUp', 'convertGuestUser', 'logIn', 'logOut', 'synchronizeUser', 'runCloudFunction']);
+    _.bindAll(this, ['logInAsGuest', 'signUp', 'convertGuestUser', 'logIn', 'logOut', 'synchronizeUser', 'runCloudFunction', 'routeHandlerWrapper', 'loggedInRouteHandlerWrapper']);
   }
 
 
-  static createServer({ dbAdapter, cloudFunctions, validatePassword = validatePasswordDefault, debug = false }: ConstructorParameters) {
+  routeHandlerWrapper(routeHandler: (body: any) => any) {
+    return async (req: Request, res: Response) => {
+      res.setHeader('Content-Type', 'application/json');
+
+      const body = parseJsonDates(req.body);
+
+      try {
+        const result = await routeHandler(body);
+        res.send(JSON.stringify({ status: 'ok', result, serverVersion: PACKAGE_VERSION }));
+      } catch (error) {
+        let response;
+        if (error instanceof HotaruError) {
+          response = { status: 'error', code: error.code, message: error.message };
+        } else if (this.debug) {
+          response = { status: 'error', code: -1, message: error.toString(), stack: error.stack };
+        } else {
+          response = { status: 'error', code: -1, message: 'Internal error' };
+        }
+        res.send(JSON.stringify(response));
+      }
+    };
+  }
+
+  loggedInRouteHandlerWrapper(loggedInRouteHandler: (body: any, sessionId: string, user: HotaruUser) => any) {
+    return async (body: any) => {
+      const { sessionId } = body;
+
+      if (sessionId === undefined) {
+        throw new HotaruError(HotaruError.NOT_LOGGED_IN);
+      }
+
+      const sessionQuery = new Query('_Session');
+      sessionQuery.equalTo('_id', sessionId);
+      const session = await this.dbAdapter.internalFirst(sessionQuery);
+
+      if (session === null) {
+        throw new HotaruError(HotaruError.SESSION_NOT_FOUND);
+      }
+
+      await this.locks[session.userId].wait();
+      try {
+        const userQuery = new Query('_User');
+        userQuery.equalTo('_id', session.userId);
+        const userData = await this.dbAdapter.internalFirst(userQuery);
+
+        if (userData === null) {
+          // This is weird, the user must've gotten deleted after the session was created.
+          // The best course of action here is probably to delete the session and pretend
+          // it didn't exist
+          await this.dbAdapter.internalDeleteObject('_Session', session);
+          throw new HotaruError(HotaruError.SESSION_NOT_FOUND);
+        }
+
+        const user = new HotaruUser(new UserDataStore(userData, userData.__changelog));
+
+        // await is necessary because loggedInRouteHandler has to finish executing before
+        // we release the lock.
+        return await loggedInRouteHandler(body, sessionId, user);
+      } finally {
+        this.locks[session.userId].signal();
+      }
+    };
+  }
+
+
+  static createServer({ dbAdapter, cloudFunctions, validatePassword = (p: string) => p.length > 6, debug = false }: ConstructorParameters) {
     const server = new HotaruServer({ dbAdapter, cloudFunctions, validatePassword, debug });
     const router = Router({ caseSensitive: true }); // eslint-disable-line new-cap
     router.use(json());
 
     router.post('/_logInAsGuest', (req, res) =>
-      routeHandlerWrapper(server.logInAsGuest, server.debug)(req, res));
+      server.routeHandlerWrapper(server.logInAsGuest)(req, res));
     router.post('/_signUp', (req, res) =>
-      routeHandlerWrapper(server.signUp, server.debug)(req, res));
+      server.routeHandlerWrapper(server.signUp)(req, res));
     router.post('/_convertGuestUser', (req, res) =>
-      routeHandlerWrapper(loggedInRouteHandlerWrapper(server.convertGuestUser, dbAdapter), server.debug)(req, res));
+      server.routeHandlerWrapper(server.loggedInRouteHandlerWrapper(server.convertGuestUser))(req, res));
     router.post('/_logIn', (req, res) =>
-      routeHandlerWrapper(server.logIn, server.debug)(req, res));
+      server.routeHandlerWrapper(server.logIn)(req, res));
     router.post('/_logOut', (req, res) =>
-      routeHandlerWrapper(loggedInRouteHandlerWrapper(server.logOut, dbAdapter), server.debug)(req, res));
+      server.routeHandlerWrapper(server.loggedInRouteHandlerWrapper(server.logOut))(req, res));
 
     router.post('/_synchronizeUser', (req, res) =>
-      routeHandlerWrapper(loggedInRouteHandlerWrapper(server.synchronizeUser, dbAdapter), server.debug)(req, res));
+      server.routeHandlerWrapper(server.loggedInRouteHandlerWrapper(server.synchronizeUser))(req, res));
 
     cloudFunctions.forEach(({ name }) => {
       if (!isAlphanumeric(name)) {
@@ -141,7 +137,7 @@ export default class HotaruServer {
       }
 
       router.post(`/${name}`, (req, res) =>
-        routeHandlerWrapper(loggedInRouteHandlerWrapper(server.runCloudFunction(name), dbAdapter), server.debug)(req, res));
+        server.routeHandlerWrapper(server.loggedInRouteHandlerWrapper(server.runCloudFunction(name)))(req, res));
     });
 
     return router;
@@ -230,7 +226,7 @@ export default class HotaruServer {
   }
 
 
-  async convertGuestUser(body: any , sessionId: string, user: HotaruUser) {
+  async convertGuestUser(body: any, sessionId: string, user: HotaruUser) {
     const { email, password } = body;
 
     if (user.get('email') !== null) {
