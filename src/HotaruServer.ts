@@ -63,13 +63,11 @@ export default class HotaruServer {
       'logIn',
       'logOut',
       'synchronizeUser',
-      'routeHandlerWrapper',
-      'loggedInRouteHandlerWrapper',
-      'cloudFunctionWrapper'
     ]);
 
     this.logInAsGuest_ = this.routeHandlerWrapper(this.logInAsGuest);
     this.signUp_ = this.routeHandlerWrapper(this.signUp);
+
     this.convertGuestUser_ = this.routeHandlerWrapper(this.loggedInRouteHandlerWrapper(this.convertGuestUser));
     this.logIn_ = this.routeHandlerWrapper(this.logIn);
     this.logOut_ = this.routeHandlerWrapper(this.loggedInRouteHandlerWrapper(this.logOut));
@@ -87,20 +85,22 @@ export default class HotaruServer {
 
   static createServer({ dbAdapter, cloudFunctionRecords, validatePassword = (p: string) => p.length > 6, debug = false }: ConstructorParameters) {
     const server = new HotaruServer({ dbAdapter, cloudFunctionRecords, validatePassword, debug });
-    const router = Router({ caseSensitive: true }); // eslint-disable-line new-cap
+
+    const router = Router({ caseSensitive: true });
     router.use(json());
 
     router.post('/_logInAsGuest', server.logInAsGuest_);
-    router.post('/_signUp', (req, res) => server.signUp_);
-    router.post('/_convertGuestUser', (req, res) => server.convertGuestUser_);
-    router.post('/_logIn', (req, res) => server.logIn_);
-    router.post('/_logOut', (req, res) => server.logOut_);
+    router.post('/_signUp', server.signUp_);
 
-    router.post('/_synchronizeUser', (req, res) => server.synchronizeUser_);
+    router.post('/_convertGuestUser', server.convertGuestUser_);
+    router.post('/_logIn', server.logIn_);
+    router.post('/_logOut', server.logOut_);
+
+    router.post('/_synchronizeUser', server.synchronizeUser_);
 
   
     cloudFunctionRecords.forEach(({ name }) => {
-      router.post(`/${name}`, (req, res) => server.convertedCloudFunctions[name]);
+      router.post(`/${name}`, server.convertedCloudFunctions[name]);
     });
 
     return router;

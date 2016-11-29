@@ -115,7 +115,7 @@ describe('HotaruServer', function () {
     expect(response.data.serverVersion).toEqual(PACKAGE_VERSION);
   });
 
-  fit('should sign up new users', async function () {
+  it('should sign up new users', async function () {
     const response = await axios.post(`http://localhost:${PORT}/api/_signUp`, {
       email: 'email1@example.com',
       password: 'password',
