@@ -17,38 +17,97 @@ import InternalDbAdapter from './db/adapters/InternalDbAdapter';
 const PACKAGE_VERSION = require(`${__dirname}/../package.json`).version; // eslint-disable-line
 
 
-type CloudFunction = {
-  name: string,
-  func: (dbAdapter: DbAdapter, user: HotaruUser, params: any, installationDetails: any) => any
+type CloudFunction = (dbAdapter: DbAdapter, user: HotaruUser, params: any, installationDetails: any) => Promise<any>;
+type CloudFunctionRecord = {
+  name: string;
+  func: CloudFunction;
 };
 
 interface ConstructorParameters {
   dbAdapter: InternalDbAdapter;
-  cloudFunctions: Array<CloudFunction>;
+  cloudFunctionRecords: CloudFunctionRecord[];
   validatePassword: (password: string) => boolean;
   debug: boolean;
 }
 
+type RouteHandler = (req: Request, res: Response) => Promise<void>;
+type WrappedRouteHandler = (body: any) => Promise<any>;
+type LoggedInRouterHandler = (body: any, sessionId: string, user: HotaruUser) => Promise<any>;
+
 export default class HotaruServer {
   private dbAdapter: InternalDbAdapter;
-  private cloudFunctions: Array<CloudFunction>;
+  private cloudFunctionRecords: CloudFunctionRecord[];
   private validatePassword: (password: string) => boolean;
   private debug: boolean;
 
   private locks: { [userId: string]: Semaphore } = defaultdict(() => new Semaphore(1)) as any as { [userId: string]: Semaphore };
 
-  constructor({ dbAdapter, cloudFunctions, validatePassword, debug }: ConstructorParameters) {
+  private logInAsGuest_: RouteHandler;
+  private signUp_: RouteHandler;
+  private convertGuestUser_: RouteHandler;
+  private logIn_: RouteHandler;
+  private logOut_: RouteHandler;
+  private synchronizeUser_: RouteHandler;
+  private convertedCloudFunctions: { [functionName: string]: RouteHandler } = {};
+
+  constructor({ dbAdapter, cloudFunctionRecords, validatePassword, debug }: ConstructorParameters) {
     this.dbAdapter = dbAdapter;
-    this.cloudFunctions = cloudFunctions;
+    this.cloudFunctionRecords = cloudFunctionRecords;
     this.validatePassword = validatePassword;
     this.debug = debug;
 
-    _.bindAll(this, ['logInAsGuest', 'signUp', 'convertGuestUser', 'logIn', 'logOut', 'synchronizeUser', 'runCloudFunction', 'routeHandlerWrapper', 'loggedInRouteHandlerWrapper']);
+    _.bindAll(this, [
+      'logInAsGuest',
+      'signUp',
+      'convertGuestUser',
+      'logIn',
+      'logOut',
+      'synchronizeUser',
+      'routeHandlerWrapper',
+      'loggedInRouteHandlerWrapper',
+      'cloudFunctionWrapper'
+    ]);
+
+    this.logInAsGuest_ = this.routeHandlerWrapper(this.logInAsGuest);
+    this.signUp_ = this.routeHandlerWrapper(this.signUp);
+    this.convertGuestUser_ = this.routeHandlerWrapper(this.loggedInRouteHandlerWrapper(this.convertGuestUser));
+    this.logIn_ = this.routeHandlerWrapper(this.logIn);
+    this.logOut_ = this.routeHandlerWrapper(this.loggedInRouteHandlerWrapper(this.logOut));
+
+    this.synchronizeUser_ = this.routeHandlerWrapper(this.loggedInRouteHandlerWrapper(this.synchronizeUser));
+
+    cloudFunctionRecords.forEach(({ name, func }) => {
+      if (!isAlphanumeric(name)) {
+        throw new HotaruError(HotaruError.CLOUD_FUNCTION_NAMES_MUST_BE_ALPHANUMERIC);
+      }
+
+      this.convertedCloudFunctions[name] = this.routeHandlerWrapper(this.loggedInRouteHandlerWrapper(this.cloudFunctionWrapper(func)));
+    })
   }
 
+  static createServer({ dbAdapter, cloudFunctionRecords, validatePassword = (p: string) => p.length > 6, debug = false }: ConstructorParameters) {
+    const server = new HotaruServer({ dbAdapter, cloudFunctionRecords, validatePassword, debug });
+    const router = Router({ caseSensitive: true }); // eslint-disable-line new-cap
+    router.use(json());
 
-  routeHandlerWrapper(routeHandler: (body: any) => any) {
-    return async (req: Request, res: Response) => {
+    router.post('/_logInAsGuest', server.logInAsGuest_);
+    router.post('/_signUp', (req, res) => server.signUp_);
+    router.post('/_convertGuestUser', (req, res) => server.convertGuestUser_);
+    router.post('/_logIn', (req, res) => server.logIn_);
+    router.post('/_logOut', (req, res) => server.logOut_);
+
+    router.post('/_synchronizeUser', (req, res) => server.synchronizeUser_);
+
+  
+    cloudFunctionRecords.forEach(({ name }) => {
+      router.post(`/${name}`, (req, res) => server.convertedCloudFunctions[name]);
+    });
+
+    return router;
+  }
+
+  routeHandlerWrapper(routeHandler: WrappedRouteHandler): RouteHandler {
+    return async (req: Request, res: Response): Promise<void> => {
       res.setHeader('Content-Type', 'application/json');
 
       const body = parseJsonDates(req.body);
@@ -70,8 +129,8 @@ export default class HotaruServer {
     };
   }
 
-  loggedInRouteHandlerWrapper(loggedInRouteHandler: (body: any, sessionId: string, user: HotaruUser) => any) {
-    return async (body: any) => {
+  loggedInRouteHandlerWrapper(loggedInRouteHandler: LoggedInRouterHandler): WrappedRouteHandler {
+    return async (body: any): Promise<any> => {
       const { sessionId } = body;
 
       if (sessionId === undefined) {
@@ -111,38 +170,13 @@ export default class HotaruServer {
     };
   }
 
+  cloudFunctionWrapper(cloudFunction: CloudFunction): LoggedInRouterHandler {
+    return async (body: any, sessionId: string, user: HotaruUser): Promise<any> => {
+      const { params, installationDetails } = body;
 
-  static createServer({ dbAdapter, cloudFunctions, validatePassword = (p: string) => p.length > 6, debug = false }: ConstructorParameters) {
-    const server = new HotaruServer({ dbAdapter, cloudFunctions, validatePassword, debug });
-    const router = Router({ caseSensitive: true }); // eslint-disable-line new-cap
-    router.use(json());
-
-    router.post('/_logInAsGuest', (req, res) =>
-      server.routeHandlerWrapper(server.logInAsGuest)(req, res));
-    router.post('/_signUp', (req, res) =>
-      server.routeHandlerWrapper(server.signUp)(req, res));
-    router.post('/_convertGuestUser', (req, res) =>
-      server.routeHandlerWrapper(server.loggedInRouteHandlerWrapper(server.convertGuestUser))(req, res));
-    router.post('/_logIn', (req, res) =>
-      server.routeHandlerWrapper(server.logIn)(req, res));
-    router.post('/_logOut', (req, res) =>
-      server.routeHandlerWrapper(server.loggedInRouteHandlerWrapper(server.logOut))(req, res));
-
-    router.post('/_synchronizeUser', (req, res) =>
-      server.routeHandlerWrapper(server.loggedInRouteHandlerWrapper(server.synchronizeUser))(req, res));
-
-    cloudFunctions.forEach(({ name }) => {
-      if (!isAlphanumeric(name)) {
-        throw new HotaruError(HotaruError.CLOUD_FUNCTION_NAMES_MUST_BE_ALPHANUMERIC);
-      }
-
-      router.post(`/${name}`, (req, res) =>
-        server.routeHandlerWrapper(server.loggedInRouteHandlerWrapper(server.runCloudFunction(name)))(req, res));
-    });
-
-    return router;
+      return await cloudFunction(this.dbAdapter, user, params, installationDetails);
+    }
   }
-
 
   static _freshUserObject(email?: string, hashedPassword?: string) {
     const now = new Date();
@@ -156,7 +190,7 @@ export default class HotaruServer {
   }
 
 
-  async logInAsGuest(_body: any) {
+  async logInAsGuest(_body: any): Promise<any> {
     const newInternalUser = await this.dbAdapter.internalSaveObject(
       '_User',
       HotaruServer._freshUserObject(null, null),
@@ -181,7 +215,7 @@ export default class HotaruServer {
   }
 
 
-  async signUp(body: any) {
+  async signUp(body: any): Promise<any> {
     const { email, password } = body;
 
     if (!isEmail(email)) {
@@ -226,7 +260,7 @@ export default class HotaruServer {
   }
 
 
-  async convertGuestUser(body: any, sessionId: string, user: HotaruUser) {
+  async convertGuestUser(body: any, sessionId: string, user: HotaruUser): Promise<any> {
     const { email, password } = body;
 
     if (user.get('email') !== null) {
@@ -243,7 +277,7 @@ export default class HotaruServer {
   }
 
 
-  async logIn(body: any) {
+  async logIn(body: any): Promise<any> {
     const { email, password } = body;
 
     const userQuery = new Query('_User');
@@ -275,7 +309,7 @@ export default class HotaruServer {
   }
 
 
-  async logOut(_body: any, sessionId: string, _user: HotaruUser) {
+  async logOut(_body: any, sessionId: string, _user: HotaruUser): Promise<any> {
     const sessionQuery = new Query('_Session');
     sessionQuery.equalTo('_id', sessionId);
     const session = await this.dbAdapter.internalFirst(sessionQuery);
@@ -293,7 +327,7 @@ export default class HotaruServer {
   }
 
 
-  async synchronizeUser(body: any, sessionId: string, user: HotaruUser) {
+  async synchronizeUser(body: any, sessionId: string, user: HotaruUser): Promise<any> {
     const { clientChangelog } = body;
 
     const userData = user._getDataStore().getRawData();
@@ -366,15 +400,5 @@ export default class HotaruServer {
     const processedChanges = clientChangelog.map(c => c._id);
 
     return { userData: this.dbAdapter.stripInternalFields(savedNewUser._getDataStore().getRawData()), processedChanges };
-  }
-
-
-  runCloudFunction(cloudFunctionName: string) {
-    return async (body: any, sessionId: string, user: HotaruUser) => {
-      const { params, installationDetails } = body;
-
-      const cloudFunction = this.cloudFunctions.find(({ name }) => cloudFunctionName === name).func;
-      return await cloudFunction(this.dbAdapter, user, params, installationDetails);
-    };
   }
 }
