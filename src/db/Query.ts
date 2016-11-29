@@ -52,6 +52,7 @@ export class Query {
   private sortOperators_: SortOperator[];
   private limit_?: number;
   private skip_?: number;
+  
 
   constructor(className: string) {
     this.className_ = className;
@@ -61,9 +62,11 @@ export class Query {
     this.skip_ = null;
   }
 
+
   get className(): string {
     return this.className_;
   }
+
 
   equalTo(key: string, value: PrimitiveValue) {
     this.selectors_.push({ type: 'equalTo', key, value });
@@ -125,6 +128,7 @@ export class Query {
   get sortOperators(): SortOperator[] {
     return this.sortOperators_;
   }
+
 
   get limit(): number {
     return this.limit_;

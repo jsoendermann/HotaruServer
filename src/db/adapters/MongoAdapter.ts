@@ -24,7 +24,7 @@ export class MongoAdapter extends InternalDbAdapter {
   private uri: string;
   private connectionPromise: Promise<Db>;
 
-  protected stripInternalFields(object: any): any {
+  public stripInternalFields(object: any): any {
     const ret: { [attr: string]: any } = {};
 
     for (const attribute of Object.keys(object)) {

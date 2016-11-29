@@ -3,6 +3,8 @@ import DbAdapter from './DbAdapter';
 import SavingOptions from '../SavingOptions';
 
 abstract class InternalDbAdapter extends DbAdapter {
+  public abstract stripInternalFields(object: any): any;
+
   public abstract async internalFind(query: Query): Promise<any[]>;
   public abstract async internalFirst(query: Query): Promise<any>;
   public abstract async internalSaveAll(className: string, objects: any[], options: SavingOptions): Promise<any[]>;

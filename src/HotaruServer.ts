@@ -7,7 +7,6 @@ import defaultdict from 'defaultdict-proxy';
 import Semaphore from 'semaphore-async-await';
 import { HotaruError, HotaruUser, UserDataStore } from 'hotaru';
 import freshId from './utils/freshId';
-import stripInternalFields from './utils/stripInternalFields';
 import parseJsonDates from './utils/parseJsonDates';
 import { Query } from './db//Query';
 import SavingMode from './db/SavingMode';
@@ -181,7 +180,7 @@ export default class HotaruServer {
       { savingMode: SavingMode.CreateOnly }
     );
 
-    const newUserData = stripInternalFields(newInternalUser);
+    const newUserData = this.dbAdapter.stripInternalFields(newInternalUser);
     return { sessionId: newSession._id, userData: newUserData };
   }
 
@@ -226,7 +225,7 @@ export default class HotaruServer {
       { savingMode: SavingMode.CreateOnly }
     );
 
-    const newUserData = stripInternalFields(newInternalUser);
+    const newUserData = this.dbAdapter.stripInternalFields(newInternalUser);
     return { sessionId: newSession._id, userData: newUserData };
   }
 
@@ -244,7 +243,7 @@ export default class HotaruServer {
 
     const savedUser = await this.dbAdapter.saveUser(user);
 
-    return { userData: stripInternalFields(savedUser._getDataStore().getRawData()) };
+    return { userData: this.dbAdapter.stripInternalFields(savedUser._getDataStore().getRawData()) };
   }
 
 
@@ -274,7 +273,7 @@ export default class HotaruServer {
       },
       { savingMode: SavingMode.CreateOnly }
     );
-    const strippedUserData = stripInternalFields(internalUserData);
+    const strippedUserData = this.dbAdapter.stripInternalFields(internalUserData);
 
     return { sessionId: newSession._id, userData: strippedUserData };
   }
@@ -370,7 +369,7 @@ export default class HotaruServer {
     const savedNewUser = await this.dbAdapter.saveUser(newUser);
     const processedChanges = clientChangelog.map(c => c._id);
 
-    return { userData: stripInternalFields(savedNewUser._getDataStore().getRawData()), processedChanges };
+    return { userData: this.dbAdapter.stripInternalFields(savedNewUser._getDataStore().getRawData()), processedChanges };
   }
 
 
