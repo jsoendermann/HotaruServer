@@ -42,6 +42,11 @@ export default class HotaruServer {
 
   private locks: { [userId: string]: Semaphore } = defaultdict(() => new Semaphore(1)) as any as { [userId: string]: Semaphore };
 
+  // TODO This is not so nice, what we here do here is wrapping the route handling functions
+  // with our three wrappers and saving the result in private instance variables.
+  // Ideally, the wrapping functions should be decorators, the reason it's not implemented like
+  // that right now is that the decorators would return functions with a different type signature
+  // than the original function which seems to mess up TypeScript's type checker.
   private logInAsGuest_: RouteHandler;
   private signUp_: RouteHandler;
   private convertGuestUser_: RouteHandler;
