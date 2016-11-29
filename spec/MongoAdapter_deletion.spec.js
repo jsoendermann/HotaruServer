@@ -4,7 +4,7 @@
 import setUpMongoAdapterWithEmptyTestDb from './helpers/setUpMongoAdapterWithEmptyTestDb';
 
 describe('MongoAdapter (deletion)', function () {
-  const Query = require('../lib/db/Query').default;
+  const { Query } = require('../lib/db/Query');
 
   beforeEach(async function () {
     this.adapter = await setUpMongoAdapterWithEmptyTestDb();

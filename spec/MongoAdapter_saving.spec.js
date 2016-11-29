@@ -12,7 +12,7 @@ import setUpMongoAdapterWithEmptyTestDb from './helpers/setUpMongoAdapterWithEmp
 install();
 
 describe('MongoAdapter (saving)', function () {
-  const Query = require('../lib/db/Query').default;
+  const { Query } = require('../lib/db/Query');
   const { SavingMode } = require('../lib/db/adapters/MongoAdapter');
 
   beforeEach(async function () {

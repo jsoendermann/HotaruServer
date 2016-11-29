@@ -21,7 +21,7 @@ describe('HotaruServer', function () {
   const express = require('express');
   const HotaruServer = require('../lib/HotaruServer').default;
   const MongoAdapter = require('../lib/db/adapters/MongoAdapter').MongoAdapter;
-  const Query = require('../lib/db/Query').default;
+  const { Query } = require('../lib/db/Query');
   const { HotaruError } = require('hotaru');
 
   beforeAll(async function () {
@@ -310,6 +310,7 @@ describe('HotaruServer', function () {
     const response3 = await axios.post(`http://localhost:${PORT}/api/returnObjects`, {
       sessionId: response1.data.result.sessionId,
     });
+
     expect(response3.data.result.map(o => o.a)).toEqual([1, 2, 3, 4]);
 
     const response4 = await axios.post(`http://localhost:${PORT}/api/deleteSomeObjects`, {
@@ -320,6 +321,7 @@ describe('HotaruServer', function () {
     const response5 = await axios.post(`http://localhost:${PORT}/api/returnObjects`, {
       sessionId: response1.data.result.sessionId,
     });
+
     expect(response5.data.result.map(o => o.a)).toEqual([3, 4]);
   });
 

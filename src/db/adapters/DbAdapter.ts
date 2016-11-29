@@ -1,4 +1,4 @@
-import Query from '../Query';
+import { Query } from '../Query';
 import { isAlphanumeric } from 'validator';
 import { HotaruError, HotaruUser, UserDataStore } from 'hotaru';
 import SavingOptions from '../SavingOptions';
@@ -6,7 +6,7 @@ import SavingMode from '../SavingMode';
 
 function denyInternalClassAccess(klass: any, key: string, descriptor: any) {
   return {
-    value: async function (className, ...args: any[]) {
+    value: async function (className: string, ...args: any[]) {
       if (!(isAlphanumeric(className))) {
         throw new HotaruError(HotaruError.INVALID_CLASS_NAME, className);
       }
@@ -18,7 +18,7 @@ function denyInternalClassAccess(klass: any, key: string, descriptor: any) {
 
 function denyInternalClassQuery(klass: any, key: string, descriptor: any) {
   return {
-    value: async function (query) {
+    value: async function (query: Query) {
       if (!(isAlphanumeric(query.className))) {
         throw new HotaruError(HotaruError.INVALID_CLASS_NAME, query.className);
       }

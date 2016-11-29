@@ -1,4 +1,4 @@
-type PrimitiveValue = boolean | number | string | null | undefined;
+type PrimitiveValue = boolean | number | string;
 type OrderedPrimitiveValue = number | string;
 
 interface EqualitySelector {
@@ -38,15 +38,15 @@ interface WhereSelector {
   expressionString: string;
 }
 
-type Selector = EqualitySelector | ComparisonSelector | ContainmentSelector | ModSelector | RegexSelector | WhereSelector;
+export type Selector = EqualitySelector | ComparisonSelector | ContainmentSelector | ModSelector | RegexSelector | WhereSelector;
 
-interface SortOperator {
-  type: string
+export interface SortOperator {
+  type: 'ascending' | 'descending';
   key: string
 }
 
 
-export default class Query {
+export class Query {
   private className_: string;
   private selectors_: Selector[];
   private sortOperators_: SortOperator[];

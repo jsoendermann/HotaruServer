@@ -3,8 +3,8 @@ import * as _ from 'lodash';
 import { isAlphanumeric } from 'validator';
 import { HotaruUser, HotaruError, UserDataStore } from 'hotaru';
 import freshId from '../../utils/freshId';
-import stripInternalFields from '../../utils/stripInternalFields';
 import InternalDbAdapter from './InternalDbAdapter';
+import { Query, Selector, SortOperator } from '../Query';
 
 export enum SavingMode {
   Upsert,
@@ -12,12 +12,20 @@ export enum SavingMode {
   UpdateOnly
 }
 
+interface ConstructorParameters {
+  uri: string;
+}
+
+interface SavingParameters {
+  savingMode?: SavingMode;
+}
+
 export class MongoAdapter extends InternalDbAdapter {
   private uri: string;
   private connectionPromise: Promise<Db>;
 
   protected stripInternalFields(object: any): any {
-    const ret = {};
+    const ret: { [attr: string]: any } = {};
 
     for (const attribute of Object.keys(object)) {
       if (!attribute.startsWith('__')) {
@@ -28,19 +36,19 @@ export class MongoAdapter extends InternalDbAdapter {
     return ret;
   }
 
-  constructor({ uri }) {
+  constructor({ uri }: ConstructorParameters) {
     super();
 
     this.uri = uri;
   }
 
 
-  private async getDb() {
+  private async getDb(): Promise<Db> {
     if (this.connectionPromise) {
       return this.connectionPromise;
     }
 
-    this.connectionPromise = MongoClient.connect(this.uri).then(db => {
+    this.connectionPromise = MongoClient.connect(this.uri).then((db: Db) => {
       if (!db) {
         delete this.connectionPromise;
         throw new Error('db is falsy');
@@ -75,7 +83,7 @@ export class MongoAdapter extends InternalDbAdapter {
   }
 
 
-  private static convertQuerySelectors(selectors): any {
+  private static convertQuerySelectors(selectors: Selector[]): any {
     const mongoSelectors = [];
 
     for (const selector of selectors) {
@@ -113,18 +121,18 @@ export class MongoAdapter extends InternalDbAdapter {
         case 'where':
           mongoSelectors.push({ $where: selector.expressionString });
           break;
-        default: throw new HotaruError(HotaruError.UNKNOWN_QUERY_SELECTOR, selector.type);
       }
     }
 
     if (mongoSelectors.length > 0) {
       return { $and: mongoSelectors };
     }
+
     return {};
   }
 
 
-  private static convertQuerySortOperators(sortOperators) {
+  private static convertQuerySortOperators(sortOperators: SortOperator[]) {
     const mongoSortOperators = [];
 
     for (const sortOperator of sortOperators) {
@@ -135,7 +143,6 @@ export class MongoAdapter extends InternalDbAdapter {
         case 'descending':
           mongoSortOperators.push([sortOperator.key, -1]);
           break;
-        default: throw new HotaruError(HotaruError.UNKNOWN_SORT_OPERATOR, sortOperator.type);
       }
     }
 
@@ -143,12 +150,11 @@ export class MongoAdapter extends InternalDbAdapter {
   }
 
 
-  public async internalFind(query) {
+  public async internalFind(query: Query): Promise<any[]> {
     const collection = await this.getCollection(query.className);
 
     let objectsPromise = collection
-      .find(MongoAdapter.
-  convertQuerySelectors(query.selectors))
+      .find(MongoAdapter.convertQuerySelectors(query.selectors))
       .sort(MongoAdapter.convertQuerySortOperators(query.sortOperators));
     if (query.limit) {
       objectsPromise = objectsPromise.limit(query.limit);
@@ -162,13 +168,17 @@ export class MongoAdapter extends InternalDbAdapter {
   }
 
 
-  public async internalFirst(query) {
+  public async internalFirst(query: Query): Promise<any> {
     query.limit = 1;
     const [object] = await this.internalFind(query);
     return object || null;
   }
 
-  public async internalSaveAll(className, objects, { savingMode = SavingMode.Upsert } = {}) {
+  public async internalSaveAll(
+    className: string, 
+    objects: any[], 
+    { savingMode = SavingMode.Upsert }: SavingParameters = {}
+  ) {
     // Make sure objects does not contain the same existing object more than once
     const oldIds = objects.map(obj => obj._id).filter(id => id !== undefined);
     if (_.uniq(oldIds).length < oldIds.length) {
@@ -177,7 +187,7 @@ export class MongoAdapter extends InternalDbAdapter {
 
     // If we are in UpdateOnly mode, every object has to have an _id
     if (savingMode === SavingMode.UpdateOnly &&
-      objects.includes(obj => obj._id === undefined)) {
+      objects.includes((obj: any) => obj._id === undefined)) {
       throw new HotaruError(HotaruError.OBJECT_WITHOUT_ID_IN_UPDATE_ONLY_SAVING_MODE);
     }
 
@@ -227,14 +237,14 @@ export class MongoAdapter extends InternalDbAdapter {
 
 
 
-  public async internalSaveObject(className, object, { savingMode = SavingMode.Upsert } = {}) {
+  public async internalSaveObject(className: string, object: any, { savingMode = SavingMode.Upsert } = {}) {
     const [savedObject] = await this.internalSaveAll(className, [object], { savingMode });
     return savedObject;
   }
 
 
 
-  public async internalDeleteAll(className, objects): Promise<boolean> {
+  public async internalDeleteAll(className: string, objects: any[]): Promise<boolean> {
     const ids = [];
     for (const object of objects) {
       if (object._id === undefined) {
@@ -253,10 +263,7 @@ export class MongoAdapter extends InternalDbAdapter {
     return result.result.ok === 1;
   }
 
-  public async internalDeleteObject(className, object) {
+  public async internalDeleteObject(className: string, object: any) {
     return this.internalDeleteAll(className, [object]);
   }
-
-
-
 }

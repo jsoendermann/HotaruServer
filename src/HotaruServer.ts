@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { json } from 'body-parser';
 import { hashSync, compareSync } from 'bcryptjs';
 import * as _ from 'lodash';
@@ -9,19 +9,20 @@ import { HotaruError, HotaruUser, UserDataStore } from 'hotaru';
 import freshId from './utils/freshId';
 import stripInternalFields from './utils/stripInternalFields';
 import parseJsonDates from './utils/parseJsonDates';
-import Query from './db//Query';
+import { Query } from './db//Query';
 import SavingMode from './db/SavingMode';
-import { MongoAdapter }  from './db/adapters/MongoAdapter';
+import { MongoAdapter } from './db/adapters/MongoAdapter';
 import DbAdapter from './db/adapters/DbAdapter';
 import InternalDbAdapter from './db/adapters/InternalDbAdapter';
 
 const PACKAGE_VERSION = require(`${__dirname}/../package.json`).version; // eslint-disable-line
 
-const locks = defaultdict(() => new Semaphore(1));
+
+const locks: { [userId: string]: Semaphore } = defaultdict(() => new Semaphore(1)) as any as { [userId: string]: Semaphore };
 
 // This should eventually be a decorator
-function routeHandlerWrapper(routeHandler, debug = false) {
-  return async (req, res) => {
+function routeHandlerWrapper(routeHandler: (body: any) => any, debug = false) {
+  return async (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'application/json');
 
     const body = parseJsonDates(req.body);
@@ -43,8 +44,8 @@ function routeHandlerWrapper(routeHandler, debug = false) {
   };
 }
 
-function loggedInRouteHandlerWrapper(loggedInRouteHandler, dbAdapter) {
-  return async (body) => {
+function loggedInRouteHandlerWrapper(loggedInRouteHandler: (body: any, sessionId: string, user: HotaruUser) => any, dbAdapter: InternalDbAdapter) {
+  return async (body: any) => {
     const { sessionId } = body;
 
     if (sessionId === undefined) {
@@ -85,7 +86,7 @@ function loggedInRouteHandlerWrapper(loggedInRouteHandler, dbAdapter) {
 }
 
 type CloudFunction = {
-  name: string, 
+  name: string,
   func: (dbAdapter: DbAdapter, user: HotaruUser, params: any, installationDetails: any) => any
 };
 
@@ -95,9 +96,10 @@ interface ConstructorParameters {
   validatePassword: (password: string) => boolean;
   debug: boolean;
 }
-  const validatePassword = (p:string) => p.length > 6;
-export default class HotaruServer {
 
+const validatePasswordDefault = (p: string) => p.length > 6;
+
+export default class HotaruServer {
   private dbAdapter: InternalDbAdapter;
   private cloudFunctions: Array<CloudFunction>;
   private validatePassword: (password: string) => boolean;
@@ -105,7 +107,7 @@ export default class HotaruServer {
 
 
 
-  constructor({ dbAdapter, cloudFunctions, validatePassword = p => p.length > 6, debug = false }: ConstructorParameters) {
+  constructor({ dbAdapter, cloudFunctions, validatePassword = validatePasswordDefault, debug }: ConstructorParameters) {
     this.dbAdapter = dbAdapter;
     this.cloudFunctions = cloudFunctions;
     this.validatePassword = validatePassword;
@@ -115,7 +117,7 @@ export default class HotaruServer {
   }
 
 
-  static createServer({ dbAdapter, cloudFunctions, debug = false }) {
+  static createServer({ dbAdapter, cloudFunctions, validatePassword = validatePasswordDefault, debug = false }: ConstructorParameters) {
     const server = new HotaruServer({ dbAdapter, cloudFunctions, validatePassword, debug });
     const router = Router({ caseSensitive: true }); // eslint-disable-line new-cap
     router.use(json());
@@ -159,7 +161,7 @@ export default class HotaruServer {
   }
 
 
-  async logInAsGuest(_body) {
+  async logInAsGuest(_body: any) {
     const newInternalUser = await this.dbAdapter.internalSaveObject(
       '_User',
       HotaruServer._freshUserObject(null, null),
@@ -184,7 +186,7 @@ export default class HotaruServer {
   }
 
 
-  async signUp(body) {
+  async signUp(body: any) {
     const { email, password } = body;
 
     if (!isEmail(email)) {
@@ -229,7 +231,7 @@ export default class HotaruServer {
   }
 
 
-  async convertGuestUser(body, sessionId, user) {
+  async convertGuestUser(body: any , sessionId: string, user: HotaruUser) {
     const { email, password } = body;
 
     if (user.get('email') !== null) {
@@ -246,7 +248,7 @@ export default class HotaruServer {
   }
 
 
-  async logIn(body) {
+  async logIn(body: any) {
     const { email, password } = body;
 
     const userQuery = new Query('_User');
@@ -278,7 +280,7 @@ export default class HotaruServer {
   }
 
 
-  async logOut(_body, sessionId, _user) {
+  async logOut(_body: any, sessionId: string, _user: HotaruUser) {
     const sessionQuery = new Query('_Session');
     sessionQuery.equalTo('_id', sessionId);
     const session = await this.dbAdapter.internalFirst(sessionQuery);
@@ -296,7 +298,7 @@ export default class HotaruServer {
   }
 
 
-  async synchronizeUser(body, sessionId, user) {
+  async synchronizeUser(body: any, sessionId: string, user: HotaruUser) {
     const { clientChangelog } = body;
 
     const userData = user._getDataStore().getRawData();
@@ -372,8 +374,8 @@ export default class HotaruServer {
   }
 
 
-  runCloudFunction(cloudFunctionName) {
-    return async (body, sessionId, user) => {
+  runCloudFunction(cloudFunctionName: string) {
+    return async (body: any, sessionId: string, user: HotaruUser) => {
       const { params, installationDetails } = body;
 
       const cloudFunction = this.cloudFunctions.find(({ name }) => cloudFunctionName === name).func;
