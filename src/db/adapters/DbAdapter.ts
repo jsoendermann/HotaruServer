@@ -8,7 +8,7 @@ function denyInternalClassAccess(klass: any, key: string, descriptor: any) {
   return {
     value: async function (className: string, ...args: any[]) {
       if (!(isAlphanumeric(className))) {
-        throw new HotaruError(HotaruError.INVALID_CLASS_NAME, className);
+        throw new HotaruError('INVALID_CLASS_NAME', className);
       }
 
       return await descriptor.value.call(this, className, ...args);
@@ -20,7 +20,7 @@ function denyInternalClassQuery(klass: any, key: string, descriptor: any) {
   return {
     value: async function (query: Query) {
       if (!(isAlphanumeric(query.className))) {
-        throw new HotaruError(HotaruError.INVALID_CLASS_NAME, query.className);
+        throw new HotaruError('INVALID_CLASS_NAME', query.className);
       }
 
       return await descriptor.value.call(this, query);
@@ -76,7 +76,7 @@ abstract class DbAdapter {
   public async saveUser(
     user: HotaruUser
   ): Promise<HotaruUser> {
-    const data = user._getDataStore().getRawData();
+    const data = user._getDataStore().getRawData() as any;
     data.__changelog = user._getDataStore().getChangelog();
     const savedUserData = await this.internalSaveObject('_User', data, { savingMode: SavingMode.UpdateOnly });
     return new HotaruUser(new UserDataStore(savedUserData, savedUserData.__changelog));

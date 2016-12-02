@@ -2,7 +2,7 @@ import { MongoClient, Db, Collection } from 'mongodb';
 import * as _ from 'lodash';
 import { isAlphanumeric } from 'validator';
 import { HotaruUser, HotaruError, UserDataStore } from 'hotaru';
-import freshId from '../../utils/freshId';
+import freshId from 'fresh-id';
 import InternalDbAdapter from './InternalDbAdapter';
 import { Query, Selector, SortOperator } from '../Query';
 
@@ -182,22 +182,22 @@ export class MongoAdapter extends InternalDbAdapter {
     // Make sure objects does not contain the same existing object more than once
     const oldIds = objects.map(obj => obj._id).filter(id => id !== undefined);
     if (_.uniq(oldIds).length < oldIds.length) {
-      throw new HotaruError(HotaruError.CAN_NOT_SAVE_TWO_OBJECTS_WITH_SAME_ID);
+      throw new HotaruError('CAN_NOT_SAVE_TWO_OBJECTS_WITH_SAME_ID');
     }
 
     // If we are in UpdateOnly mode, every object has to have an _id
     if (savingMode === SavingMode.UpdateOnly &&
       objects.includes((obj: any) => obj._id === undefined)) {
-      throw new HotaruError(HotaruError.OBJECT_WITHOUT_ID_IN_UPDATE_ONLY_SAVING_MODE);
+      throw new HotaruError('OBJECT_WITHOUT_ID_IN_UPDATE_ONLY_SAVING_MODE');
     }
 
     const collection = await this.getCollection(className);
     const existingObjects = await collection.find({ _id: { $in: oldIds } }).toArray();
 
     if (savingMode === SavingMode.CreateOnly && existingObjects.length > 0) {
-      throw new HotaruError(HotaruError.CAN_NOT_OVERWRITE_OBJECT_IN_CREATE_ONLY_SAVING_MODE);
+      throw new HotaruError('CAN_NOT_OVERWRITE_OBJECT_IN_CREATE_ONLY_SAVING_MODE');
     } else if (savingMode === SavingMode.UpdateOnly && existingObjects.length !== objects.length) {
-      throw new HotaruError(HotaruError.CAN_NOT_CREATE_NEW_OBJECT_IN_UPDATE_ONLY_SAVING_MODE);
+      throw new HotaruError('CAN_NOT_CREATE_NEW_OBJECT_IN_UPDATE_ONLY_SAVING_MODE');
     }
 
     const oldAndNewIds = [];
@@ -248,14 +248,14 @@ export class MongoAdapter extends InternalDbAdapter {
     const ids = [];
     for (const object of objects) {
       if (object._id === undefined) {
-        throw new HotaruError(HotaruError.CAN_NOT_DELETE_OBJECT_WITHOUT_ID);
+        throw new HotaruError('CAN_NOT_DELETE_OBJECT_WITHOUT_ID');
       }
       ids.push(object._id);
     }
 
     // Make sure objects does not contain the same existing object more than once
     if (_.uniq(ids).length < ids.length) {
-      throw new HotaruError(HotaruError.CAN_NOT_DELETE_TWO_OBJECTS_WITH_SAME_ID);
+      throw new HotaruError('CAN_NOT_DELETE_TWO_OBJECTS_WITH_SAME_ID');
     }
 
     const collection = await this.getCollection(className);

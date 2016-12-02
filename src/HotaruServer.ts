@@ -5,9 +5,8 @@ import * as _ from 'lodash';
 import { isAlphanumeric, isEmail } from 'validator';
 import defaultdict from 'defaultdict-proxy';
 import Semaphore from 'semaphore-async-await';
-import { HotaruError, HotaruUser, UserDataStore } from 'hotaru';
-import freshId from './utils/freshId';
-import parseJsonDates from './utils/parseJsonDates';
+import { HotaruError, HotaruUser, UserDataStore, UserChange } from 'hotaru';
+import freshId from 'fresh-id';
 import { Query } from './db//Query';
 import SavingMode from './db/SavingMode';
 import { MongoAdapter } from './db/adapters/MongoAdapter';
@@ -81,7 +80,7 @@ export default class HotaruServer {
 
     cloudFunctionRecords.forEach(({ name, func }) => {
       if (!isAlphanumeric(name)) {
-        throw new HotaruError(HotaruError.CLOUD_FUNCTION_NAMES_MUST_BE_ALPHANUMERIC);
+        throw new HotaruError('CLOUD_FUNCTION_NAMES_MUST_BE_ALPHANUMERIC');
       }
 
       this.convertedCloudFunctions[name] = this.routeHandlerWrapper(this.loggedInRouteHandlerWrapper(this.cloudFunctionWrapper(func)));
@@ -115,7 +114,7 @@ export default class HotaruServer {
     return async (req: Request, res: Response): Promise<void> => {
       res.setHeader('Content-Type', 'application/json');
 
-      const body = parseJsonDates(req.body);
+      const body = JSON.parse(req.body);
 
       try {
         const result = await routeHandler(body);
@@ -139,7 +138,7 @@ export default class HotaruServer {
       const { sessionId } = body;
 
       if (sessionId === undefined) {
-        throw new HotaruError(HotaruError.NOT_LOGGED_IN);
+        throw new HotaruError('NOT_LOGGED_IN');
       }
 
       const sessionQuery = new Query('_Session');
@@ -147,7 +146,7 @@ export default class HotaruServer {
       const session = await this.dbAdapter.internalFirst(sessionQuery);
 
       if (session === null) {
-        throw new HotaruError(HotaruError.SESSION_NOT_FOUND);
+        throw new HotaruError('SESSION_NOT_FOUND');
       }
 
       await this.locks[session.userId].wait();
@@ -161,7 +160,7 @@ export default class HotaruServer {
           // The best course of action here is probably to delete the session and pretend
           // it didn't exist
           await this.dbAdapter.internalDeleteObject('_Session', session);
-          throw new HotaruError(HotaruError.SESSION_NOT_FOUND);
+          throw new HotaruError('SESSION_NOT_FOUND');
         }
 
         const user = new HotaruUser(new UserDataStore(userData, userData.__changelog));
@@ -188,7 +187,7 @@ export default class HotaruServer {
     return {
       email,
       __hashedPassword: hashedPassword,
-      __changelog: [],
+      __changelog: [] as any,
       createdAt: now,
       updatedAt: now,
     };
@@ -224,11 +223,11 @@ export default class HotaruServer {
     const { email, password } = body;
 
     if (!isEmail(email)) {
-      throw new HotaruError(HotaruError.INVALID_EMAIL_ADDRESS);
+      throw new HotaruError('INVALID_EMAIL_ADDRESS');
     }
 
     if (!this.validatePassword(password)) {
-      throw new HotaruError(HotaruError.INVALID_PASSWORD);
+      throw new HotaruError('INVALID_PASSWORD');
     }
 
     const existingUserQuery = new Query('_User');
@@ -236,7 +235,7 @@ export default class HotaruServer {
     const existingUser = await this.dbAdapter.internalFirst(existingUserQuery);
 
     if (existingUser !== null) {
-      throw new HotaruError(HotaruError.USER_ALREADY_EXISTS);
+      throw new HotaruError('USER_ALREADY_EXISTS');
     }
 
     const hashedPassword = hashSync(password, 10);
@@ -269,7 +268,7 @@ export default class HotaruServer {
     const { email, password } = body;
 
     if (user.get('email') !== null) {
-      throw new HotaruError(HotaruError.CAN_NOT_CONVERT_NON_GUEST_USER);
+      throw new HotaruError('CAN_NOT_CONVERT_NON_GUEST_USER');
     }
 
     user.set('email', email);
@@ -290,11 +289,11 @@ export default class HotaruServer {
     const internalUserData = await this.dbAdapter.internalFirst(userQuery);
 
     if (internalUserData === null) {
-      throw new HotaruError(HotaruError.NO_USER_WITH_GIVEN_EMAIL_ADDRESS);
+      throw new HotaruError('NO_USER_WITH_GIVEN_EMAIL_ADDRESS');
     }
 
     if (!compareSync(password, internalUserData.__hashedPassword)) {
-      throw new HotaruError(HotaruError.INCORRECT_PASSWORD);
+      throw new HotaruError('INCORRECT_PASSWORD');
     }
 
     const newSession = await this.dbAdapter.internalSaveObject(
@@ -320,20 +319,20 @@ export default class HotaruServer {
     const session = await this.dbAdapter.internalFirst(sessionQuery);
 
     if (session === null) {
-      throw new HotaruError(HotaruError.SESSION_NOT_FOUND);
+      throw new HotaruError('SESSION_NOT_FOUND');
     }
 
     const success = await this.dbAdapter.internalDeleteObject('_Session', session);
 
     if (!success) {
-      throw new HotaruError(HotaruError.LOGOUT_FAILED);
+      throw new HotaruError('LOGOUT_FAILED');
     }
     return {};
   }
 
 
   async synchronizeUser(body: any, sessionId: string, user: HotaruUser): Promise<any> {
-    const { clientChangelog } = body;
+    const clientChangelog = body.clientChangelog as UserChange[];
 
     const userData = user._getDataStore().getRawData();
     let localChangelog = user._getDataStore().getChangelog();
@@ -356,7 +355,7 @@ export default class HotaruServer {
                 } else if (c.type === 'append') {
                   userData[change.field].append(c.value);
                 } else {
-                  throw new HotaruError(HotaruError.INVALID_CHANGE_TYPE);
+                  throw new HotaruError('INVALID_CHANGE_TYPE');
                 }
               });
               localChangelog.push(change);
@@ -391,7 +390,6 @@ export default class HotaruServer {
             }
           }
           break;
-        default: throw new HotaruError(HotaruError.INVALID_CHANGE_TYPE, change.type);
       }
     });
 
