@@ -10,8 +10,8 @@ import freshId from 'fresh-id';
 import { Query } from './db//Query';
 import SavingMode from './db/SavingMode';
 import { MongoAdapter } from './db/adapters/MongoAdapter';
-import DbAdapter from './db/adapters/DbAdapter';
-import InternalDbAdapter from './db/adapters/InternalDbAdapter';
+import { DbAdapter } from './db/adapters/DbAdapter';
+import { InternalDbAdapter } from './db/adapters/InternalDbAdapter';
 
 const PACKAGE_VERSION = require(`${__dirname}/../package.json`).version; // eslint-disable-line
 

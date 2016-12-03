@@ -3,8 +3,9 @@ import * as _ from 'lodash';
 import { isAlphanumeric } from 'validator';
 import { HotaruUser, HotaruError, UserDataStore } from 'hotaru';
 import freshId from 'fresh-id';
-import InternalDbAdapter from './InternalDbAdapter';
+import { InternalDbAdapter } from './InternalDbAdapter';
 import { Query, Selector, SortOperator } from '../Query';
+import { Schema, ClassDescriptor } from './DbAdapter';
 
 export enum SavingMode {
   Upsert,
@@ -14,6 +15,7 @@ export enum SavingMode {
 
 interface ConstructorParameters {
   uri: string;
+  schema?: Schema;
 }
 
 interface SavingParameters {
@@ -24,20 +26,8 @@ export class MongoAdapter extends InternalDbAdapter {
   private uri: string;
   private connectionPromise: Promise<Db>;
 
-  public stripInternalFields(object: any): any {
-    const ret: { [attr: string]: any } = {};
-
-    for (const attribute of Object.keys(object)) {
-      if (!attribute.startsWith('__')) {
-        ret[attribute] = object[attribute];
-      }
-    }
-
-    return ret;
-  }
-
-  constructor({ uri }: ConstructorParameters) {
-    super();
+  constructor({ uri, schema }: ConstructorParameters) {
+    super(schema);
 
     this.uri = uri;
   }

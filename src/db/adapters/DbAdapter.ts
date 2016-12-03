@@ -4,6 +4,33 @@ import { HotaruError, HotaruUser, UserDataStore } from 'hotaru';
 import SavingOptions from '../SavingOptions';
 import SavingMode from '../SavingMode';
 
+type FieldType = 'int' | 'float' | 'string' | 'boolean' | 'array' | 'date' | 'object';
+
+interface FieldDescriptor {
+  fieldName: string;
+  type: FieldType;
+  nullable?: boolean;
+}
+
+export interface ClassDescriptor {
+  className: string;
+  fieldDescriptors: FieldDescriptor[];
+}
+
+export type Schema = ClassDescriptor[];
+
+function verifyType(value: any, type: FieldType): boolean {
+  switch (type) {
+    case 'int': return Number.isInteger(value);
+    case 'float': return Number.isFinite(value);
+    case 'string': return typeof value === 'string';
+    case 'boolean': return typeof value === 'boolean';
+    case 'array': return Array.isArray(value);
+    case 'date': return value instanceof Date;
+    case 'object': return !(value instanceof Date) && !Array.isArray(value) && typeof value === 'object';
+  }
+}
+
 function denyInternalClassAccess(klass: any, key: string, descriptor: any) {
   return {
     value: async function (className: string, ...args: any[]) {
@@ -28,8 +55,98 @@ function denyInternalClassQuery(klass: any, key: string, descriptor: any) {
   };
 }
 
-abstract class DbAdapter {
-  protected abstract stripInternalFields(object: any): any;
+export abstract class DbAdapter {
+  protected classNameToClassDescriptor: { [className: string]: ClassDescriptor};
+
+  constructor(schema: Schema) {
+    if (schema) {
+      schema.unshift({
+        className: '_User',
+        fieldDescriptors: []
+      });
+
+      schema.forEach(classDescriptor => {
+        // This is nullable b/c schema gets verified before _id, createdAt & updatedAt are set
+        classDescriptor.fieldDescriptors.push({ fieldName: '_id', type: 'string', nullable: true });
+        classDescriptor.fieldDescriptors.push({ fieldName: 'createdAt', type: 'date', nullable: true });
+        classDescriptor.fieldDescriptors.push({ fieldName: 'updatedAt', type: 'date', nullable: true });
+
+        if (classDescriptor.className === '_User') {
+          // nullable for guest users
+          classDescriptor.fieldDescriptors.push({ fieldName: 'email', type: 'string', nullable: true });
+        }
+      });
+
+      this.classNameToClassDescriptor = {};
+      schema.forEach(classDescriptor => this.classNameToClassDescriptor[classDescriptor.className] = classDescriptor);
+    }
+  }
+
+  private ensureSchemaConformance(className: string, object: any): void {
+    if (!this.classNameToClassDescriptor) {
+      return;
+    }
+
+    const classDescriptor = this.classNameToClassDescriptor[className];
+    
+    if (!classDescriptor) {
+      throw new HotaruError('CLASS_NOT_IN_SCHEMA', className);
+    }
+
+    const fieldNameToFieldDescriptor = {} as { [fieldName: string]: FieldDescriptor };
+    classDescriptor.fieldDescriptors.forEach(fieldDescriptor =>
+      fieldNameToFieldDescriptor[fieldDescriptor.fieldName] = fieldDescriptor  
+    )
+
+    const typeErrors = Object.keys(object).map(key => {
+      if (key.startsWith('__')) {
+        return null;
+      }
+
+      const fieldDescriptor = fieldNameToFieldDescriptor[key];
+      if (!fieldDescriptor) {
+        return `Field not in schema: ${key}`
+      }
+
+      const value = object[key];
+
+      if (value === null || value === undefined) {
+        // We do nullable checks below
+        return null;
+      }
+
+      if (!verifyType(value, fieldDescriptor.type)) {
+        return `Value ${value} of field ${key} does not conform to type ${fieldDescriptor.type}`;
+      }
+
+      return null;
+    });
+
+    const nullableErrors = classDescriptor.fieldDescriptors.map(({ fieldName, nullable }) => {
+      if (nullable === false && (object[fieldName] === null || object[fieldName] === undefined)) {
+        return `Field ${fieldName} is ${object[fieldName]} but is not marked as nullable`;
+      }
+      return null;
+    });
+
+    const errors = [...typeErrors, ...nullableErrors].filter(e => e !== null);
+
+    if (errors.length > 0) {
+      throw new HotaruError('SCHEMA_CONFORMANCE_ERROR', errors.join('; '));
+    }
+  }
+
+  public stripInternalFields(object: any): any {
+    const ret: { [attr: string]: any } = {};
+
+    for (const attribute of Object.keys(object)) {
+      if (!attribute.startsWith('__')) {
+        ret[attribute] = object[attribute];
+      }
+    }
+
+    return ret;
+  }
 
   protected abstract async internalFind(query: Query): Promise<any[]>;
   protected abstract async internalFirst(query: Query): Promise<any>;
@@ -59,6 +176,8 @@ abstract class DbAdapter {
     objects: any[],
     options: SavingOptions = { savingMode: SavingMode.Upsert }
   ): Promise<any[]> {
+    objects.forEach(obj => this.ensureSchemaConformance(className, obj));
+
     const savedObjects = await this.internalSaveAll(className, objects, options);
     return savedObjects.map(obj => this.stripInternalFields(obj));
   }
@@ -69,6 +188,8 @@ abstract class DbAdapter {
     object: any,
     options: SavingOptions = { savingMode: SavingMode.Upsert }
   ): Promise<any> {
+    this.ensureSchemaConformance(className, object);
+
     const savedObject = await this.internalSaveObject(className, object, options);
     return this.stripInternalFields(savedObject);
   }
@@ -78,6 +199,9 @@ abstract class DbAdapter {
   ): Promise<HotaruUser> {
     const data = user._getDataStore().getRawData() as any;
     data.__changelog = user._getDataStore().getChangelog();
+
+    this.ensureSchemaConformance('_User', data);
+
     const savedUserData = await this.internalSaveObject('_User', data, { savingMode: SavingMode.UpdateOnly });
     return new HotaruUser(new UserDataStore(savedUserData, savedUserData.__changelog));
   }
@@ -92,5 +216,3 @@ abstract class DbAdapter {
     return this.deleteAll(className, [object]);
   }
 }
-
-export default DbAdapter;

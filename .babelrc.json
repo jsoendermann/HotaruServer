@@ -1,5 +1,5 @@
 {
-  "presets": ["es2015-node"],
+  "presets": ["latest"],
   "plugins": [
     "transform-runtime",
     "transform-async-to-generator"
