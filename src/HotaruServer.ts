@@ -114,7 +114,7 @@ export default class HotaruServer {
     return async (req: Request, res: Response): Promise<void> => {
       res.setHeader('Content-Type', 'application/json');
 
-      const body = JSON.parse(req.body);
+      const body = req.body;
 
       try {
         const result = await routeHandler(body);
