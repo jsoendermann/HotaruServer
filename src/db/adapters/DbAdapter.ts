@@ -1,6 +1,5 @@
-import { Query } from '../Query';
 import { isAlphanumeric } from 'validator';
-import { HotaruError, HotaruUser, UserDataStore } from 'hotaru';
+import { HotaruError, HotaruUser, SelfContainedUserDataStore, Query } from 'hotaru';
 import SavingOptions from '../SavingOptions';
 import SavingMode from '../SavingMode';
 
@@ -35,7 +34,7 @@ function denyInternalClassAccess(klass: any, key: string, descriptor: any) {
   return {
     value: async function (className: string, ...args: any[]) {
       if (!(isAlphanumeric(className))) {
-        throw new HotaruError('INVALID_CLASS_NAME', className);
+        throw new HotaruError(HotaruError.INVALID_CLASS_NAME, className);
       }
 
       return await descriptor.value.call(this, className, ...args);
@@ -47,7 +46,7 @@ function denyInternalClassQuery(klass: any, key: string, descriptor: any) {
   return {
     value: async function (query: Query) {
       if (!(isAlphanumeric(query.className))) {
-        throw new HotaruError('INVALID_CLASS_NAME', query.className);
+        throw new HotaruError(HotaruError.INVALID_CLASS_NAME, query.className);
       }
 
       return await descriptor.value.call(this, query);
@@ -90,7 +89,7 @@ export abstract class DbAdapter {
     const classDescriptor = this.classNameToClassDescriptor[className];
     
     if (!classDescriptor) {
-      throw new HotaruError('CLASS_NOT_IN_SCHEMA', className);
+      throw new HotaruError(HotaruError.CLASS_NOT_IN_SCHEMA, className);
     }
 
     const fieldNameToFieldDescriptor = {} as { [fieldName: string]: FieldDescriptor };
@@ -132,7 +131,7 @@ export abstract class DbAdapter {
     const errors = [...typeErrors, ...nullableErrors].filter(e => e !== null);
 
     if (errors.length > 0) {
-      throw new HotaruError('SCHEMA_CONFORMANCE_ERROR', errors.join('; '));
+      throw new HotaruError(HotaruError.SCHEMA_CONFORMANCE_ERROR, errors.join('; '));
     }
   }
 
@@ -203,7 +202,7 @@ export abstract class DbAdapter {
     this.ensureSchemaConformance('_User', data);
 
     const savedUserData = await this.internalSaveObject('_User', data, { savingMode: SavingMode.UpdateOnly });
-    return new HotaruUser(new UserDataStore(savedUserData, savedUserData.__changelog));
+    return new HotaruUser(new SelfContainedUserDataStore(savedUserData, savedUserData.__changelog));
   }
 
   @denyInternalClassAccess

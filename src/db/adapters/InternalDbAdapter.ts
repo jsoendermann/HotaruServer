@@ -1,4 +1,4 @@
-import { Query } from '../Query';
+import { Query } from 'hotaru';
 import { DbAdapter } from './DbAdapter';
 import SavingOptions from '../SavingOptions';
 
