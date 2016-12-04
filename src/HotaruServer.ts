@@ -27,6 +27,7 @@ interface ConstructorParameters {
   cloudFunctionRecords: CloudFunctionRecord[];
   validatePassword: (password: string) => boolean;
   debug: boolean;
+  masterKey?: string;
 }
 
 type RouteHandler = (req: Request, res: Response) => Promise<void>;
@@ -38,6 +39,7 @@ export default class HotaruServer {
   private cloudFunctionRecords: CloudFunctionRecord[];
   private validatePassword: (password: string) => boolean;
   private debug: boolean;
+  private masterKey: string;
 
   private locks: { [userId: string]: Semaphore } = defaultdict(() => new Semaphore(1)) as any as { [userId: string]: Semaphore };
 
@@ -51,14 +53,16 @@ export default class HotaruServer {
   private convertGuestUser_: RouteHandler;
   private logIn_: RouteHandler;
   private logOut_: RouteHandler;
+  private runQuery_: RouteHandler;
   private synchronizeUser_: RouteHandler;
   private convertedCloudFunctions: { [functionName: string]: RouteHandler } = {};
 
-  constructor({ dbAdapter, cloudFunctionRecords, validatePassword, debug }: ConstructorParameters) {
+  constructor({ dbAdapter, cloudFunctionRecords, validatePassword, debug, masterKey }: ConstructorParameters) {
     this.dbAdapter = dbAdapter;
     this.cloudFunctionRecords = cloudFunctionRecords;
     this.validatePassword = validatePassword;
     this.debug = debug;
+    this.masterKey = masterKey;
 
     _.bindAll(this, [
       'logInAsGuest',
@@ -66,6 +70,7 @@ export default class HotaruServer {
       'convertGuestUser',
       'logIn',
       'logOut',
+      'runQuery',
       'synchronizeUser',
     ]);
 
@@ -75,6 +80,8 @@ export default class HotaruServer {
     this.convertGuestUser_ = this.routeHandlerWrapper(this.loggedInRouteHandlerWrapper(this.convertGuestUser));
     this.logIn_ = this.routeHandlerWrapper(this.logIn);
     this.logOut_ = this.routeHandlerWrapper(this.loggedInRouteHandlerWrapper(this.logOut));
+
+    this.runQuery_ = this.routeHandlerWrapper(this.runQuery);
 
     this.synchronizeUser_ = this.routeHandlerWrapper(this.loggedInRouteHandlerWrapper(this.synchronizeUser));
 
@@ -87,8 +94,8 @@ export default class HotaruServer {
     })
   }
 
-  static createServer({ dbAdapter, cloudFunctionRecords, validatePassword = (p: string) => p.length > 6, debug = false }: ConstructorParameters) {
-    const server = new HotaruServer({ dbAdapter, cloudFunctionRecords, validatePassword, debug });
+  static createServer({ dbAdapter, cloudFunctionRecords, validatePassword = (p: string) => p.length > 6, debug = false, masterKey }: ConstructorParameters) {
+    const server = new HotaruServer({ dbAdapter, cloudFunctionRecords, validatePassword, debug, masterKey });
 
     const router = Router({ caseSensitive: true });
     router.use(json());
@@ -100,8 +107,9 @@ export default class HotaruServer {
     router.post('/_logIn', server.logIn_);
     router.post('/_logOut', server.logOut_);
 
-    router.post('/_synchronizeUser', server.synchronizeUser_);
+    router.post('/_runQuery', server.runQuery_);
 
+    router.post('/_synchronizeUser', server.synchronizeUser_);
   
     cloudFunctionRecords.forEach(({ name }) => {
       router.post(`/${name}`, server.convertedCloudFunctions[name]);
@@ -329,6 +337,19 @@ export default class HotaruServer {
       throw new HotaruError(HotaruError.LOGOUT_FAILED);
     }
     return {};
+  }
+
+  async runQuery(body: any): Promise<any> {
+    const { masterKey, queryData } = body;
+
+    if (masterKey !== this.masterKey) {
+      throw new HotaruError(HotaruError.INCORRECT_MASTER_KEY);
+    }
+
+    const query = Query.deserialize(queryData);
+    const queryResult = this.dbAdapter.find(query);
+
+    return { queryResult };
   }
 
 
