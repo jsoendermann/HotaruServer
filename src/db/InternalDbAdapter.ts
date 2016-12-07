@@ -1,6 +1,5 @@
 import { Query } from 'hotaru';
-import { DbAdapter } from './DbAdapter';
-import SavingOptions from '../SavingOptions';
+import { DbAdapter, SavingOptions } from './DbAdapter';
 
 export abstract class InternalDbAdapter extends DbAdapter {
   public abstract async internalFind(query: Query): Promise<any[]>;

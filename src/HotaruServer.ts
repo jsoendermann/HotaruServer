@@ -7,39 +7,41 @@ import defaultdict from 'defaultdict-proxy';
 import Semaphore from 'semaphore-async-await';
 import { HotaruError, HotaruUser, SelfContainedUserDataStore, UserChange, Query } from 'hotaru';
 import freshId from 'fresh-id';
-import SavingMode from './db/SavingMode';
-import { MongoAdapter } from './db/adapters/MongoAdapter';
-import { DbAdapter } from './db/adapters/DbAdapter';
-import { InternalDbAdapter } from './db/adapters/InternalDbAdapter';
 import { parse, stringify } from 'date-aware-json';
+import * as winston from 'winston';
+
+import { DbAdapter, SavingMode } from './db/DbAdapter';
+import { InternalDbAdapter } from './db/InternalDbAdapter';
+import { MongoAdapter } from './db/MongoAdapter';
+
 
 const PACKAGE_VERSION = require(`${__dirname}/../package.json`).version; // eslint-disable-line
 
 
-type CloudFunction = (dbAdapter: DbAdapter, user: HotaruUser, params: any, installationDetails: any) => Promise<any>;
-type CloudFunctionRecord = {
+export type CloudFunction = (dbAdapter: DbAdapter, user: HotaruUser, params: any, installationDetails: any) => Promise<any>;
+export type CloudFunctionRecord = {
   name: string;
   func: CloudFunction;
 };
 
-interface ConstructorParameters {
+export interface ConstructorParameters {
   dbAdapter: InternalDbAdapter;
   cloudFunctionRecords: CloudFunctionRecord[];
   validatePassword: (password: string) => boolean;
-  debug: boolean;
+  enableLogging: boolean;
   masterKey?: string;
 }
 
-type RouteHandler = (req: Request, res: Response) => Promise<void>;
-type WrappedRouteHandler = (body: any) => Promise<any>;
-type LoggedInRouterHandler = (body: any, sessionId: string, user: HotaruUser) => Promise<any>;
+export type RouteHandler = (req: Request, res: Response) => Promise<void>;
+export type WrappedRouteHandler = (body: any) => Promise<any>;
+export type LoggedInRouterHandler = (body: any, sessionId: string, user: HotaruUser) => Promise<any>;
 
-export default class HotaruServer {
+export class HotaruServer {
   private dbAdapter: InternalDbAdapter;
   private cloudFunctionRecords: CloudFunctionRecord[];
   private validatePassword: (password: string) => boolean;
-  private debug: boolean;
   private masterKey: string;
+  private logger: winston.LoggerInstance;
 
   private locks: { [userId: string]: Semaphore } = defaultdict(() => new Semaphore(1)) as any as { [userId: string]: Semaphore };
 
@@ -57,12 +59,18 @@ export default class HotaruServer {
   private synchronizeUser_: RouteHandler;
   private convertedCloudFunctions: { [functionName: string]: RouteHandler } = {};
 
-  constructor({ dbAdapter, cloudFunctionRecords, validatePassword, debug, masterKey }: ConstructorParameters) {
+  constructor({ dbAdapter, cloudFunctionRecords, validatePassword, enableLogging, masterKey }: ConstructorParameters) {
     this.dbAdapter = dbAdapter;
     this.cloudFunctionRecords = cloudFunctionRecords;
     this.validatePassword = validatePassword;
-    this.debug = debug;
     this.masterKey = masterKey;
+    this.logger = new (winston.Logger)();
+
+    if (enableLogging) {
+      this.logger.add(winston.transports.Console);
+    }
+
+    dbAdapter.logger = this.logger;
 
     _.bindAll(this, [
       'logInAsGuest',
@@ -94,8 +102,8 @@ export default class HotaruServer {
     })
   }
 
-  static createServer({ dbAdapter, cloudFunctionRecords, validatePassword = (p: string) => p.length > 6, debug = false, masterKey }: ConstructorParameters) {
-    const server = new HotaruServer({ dbAdapter, cloudFunctionRecords, validatePassword, debug, masterKey });
+  static createServer({ dbAdapter, cloudFunctionRecords, validatePassword = (p: string) => p.length > 6, enableLogging = false, masterKey = null }: ConstructorParameters): Router {
+    const server = new HotaruServer({ dbAdapter, cloudFunctionRecords, validatePassword, enableLogging, masterKey });
 
     const router = Router({ caseSensitive: true });
     router.use(json());
@@ -110,7 +118,7 @@ export default class HotaruServer {
     router.post('/_runQuery', server.runQuery_);
 
     router.post('/_synchronizeUser', server.synchronizeUser_);
-  
+
     cloudFunctionRecords.forEach(({ name }) => {
       router.post(`/${name}`, server.convertedCloudFunctions[name]);
     });
@@ -122,22 +130,31 @@ export default class HotaruServer {
     return async (req: Request, res: Response): Promise<void> => {
       res.setHeader('Content-Type', 'application/json');
 
-      const { payload } = req.body;
-      const parsedPayload = parse(payload);
+      this.logger.info(`Received request: ${req.url}, ${stringify(req.body)}`);
+
+      const { payloadString } = req.body;
 
       try {
-        const result = await routeHandler(parsedPayload);
-        res.send({payload: stringify({ status: 'ok', result, serverVersion: PACKAGE_VERSION })});
+        if (payloadString === undefined) {
+          throw new HotaruError(HotaruError.NO_PAYLOAD_SENT);
+        }
+        const payload = parse(payloadString);
+
+        const result = await routeHandler(payload);
+        this.logger.info(`Successfully executed route handler with result: ${stringify(result)}`);
+
+        res.send({ payloadString: stringify({ status: 'ok', result, serverVersion: PACKAGE_VERSION }) });
       } catch (error) {
+        this.logger.info(`Error: ${error.message}; Code: ${error.code}; Stack trace: ${error.stack}`);
+
         let response;
         if (error instanceof HotaruError) {
           response = { status: 'error', code: error.code, message: error.message };
-        } else if (this.debug) {
-          response = { status: 'error', code: -1, message: error.toString(), stack: error.stack };
         } else {
           response = { status: 'error', code: -1, message: 'Internal error' };
         }
-        res.send({payload: stringify(response)});
+
+        res.send({ payloadString: stringify(response) });
       }
     };
   }

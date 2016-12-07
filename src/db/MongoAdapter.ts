@@ -3,23 +3,16 @@ import * as _ from 'lodash';
 import { isAlphanumeric } from 'validator';
 import { HotaruUser, HotaruError, UserDataStore, Query, Selector, SortOperator } from 'hotaru';
 import freshId from 'fresh-id';
+
 import { InternalDbAdapter } from './InternalDbAdapter';
-import { Schema, ClassDescriptor } from './DbAdapter';
+import { Schema, ClassDescriptor, SavingMode, SavingOptions } from './DbAdapter';
 
-export enum SavingMode {
-  Upsert,
-  CreateOnly,
-  UpdateOnly
-}
 
-interface ConstructorParameters {
+export interface ConstructorParameters {
   uri: string;
   schema?: Schema;
 }
 
-interface SavingParameters {
-  savingMode?: SavingMode;
-}
 
 export class MongoAdapter extends InternalDbAdapter {
   private uri: string;
@@ -166,7 +159,7 @@ export class MongoAdapter extends InternalDbAdapter {
   public async internalSaveAll(
     className: string, 
     objects: any[], 
-    { savingMode = SavingMode.Upsert }: SavingParameters = {}
+    { savingMode = SavingMode.Upsert }: SavingOptions = { savingMode: SavingMode.Upsert }
   ) {
     // Make sure objects does not contain the same existing object more than once
     const oldIds = objects.map(obj => obj._id).filter(id => id !== undefined);

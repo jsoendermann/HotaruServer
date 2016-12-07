@@ -9,6 +9,7 @@
     "mongodb": "registry:dt/mongodb#2.1.0+20161110150902",
     "node": "registry:dt/node#6.0.0+20161110151007",
     "serve-static": "registry:dt/serve-static#0.0.0+20160606155157",
-    "validator": "registry:dt/validator#5.7.0+20161105193831"
+    "validator": "registry:dt/validator#5.7.0+20161105193831",
+    "winston": "registry:dt/winston#0.0.0+20161108133445"
   }
 }

@@ -1,7 +1,8 @@
 {
-  "presets": ["latest"],
+  "presets": [
+    "latest"
+  ],
   "plugins": [
-    "transform-runtime",
-    "transform-async-to-generator"
+    "transform-runtime"
   ]
 }

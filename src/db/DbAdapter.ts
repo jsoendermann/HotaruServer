@@ -1,11 +1,10 @@
 import { isAlphanumeric } from 'validator';
 import { HotaruError, HotaruUser, SelfContainedUserDataStore, Query } from 'hotaru';
-import SavingOptions from '../SavingOptions';
-import SavingMode from '../SavingMode';
+import * as winston from 'winston';
 
-type FieldType = 'int' | 'float' | 'string' | 'boolean' | 'array' | 'date' | 'object';
+export type FieldType = 'int' | 'float' | 'string' | 'boolean' | 'array' | 'date' | 'object';
 
-interface FieldDescriptor {
+export interface FieldDescriptor {
   fieldName: string;
   type: FieldType;
   nullable?: boolean;
@@ -17,6 +16,17 @@ export interface ClassDescriptor {
 }
 
 export type Schema = ClassDescriptor[];
+
+export enum SavingMode {
+  Upsert,
+  CreateOnly,
+  UpdateOnly
+}
+
+export interface SavingOptions {
+  savingMode: SavingMode;
+};
+
 
 function verifyType(value: any, type: FieldType): boolean {
   switch (type) {
@@ -56,6 +66,14 @@ function denyInternalClassQuery(klass: any, key: string, descriptor: any) {
 
 export abstract class DbAdapter {
   protected classNameToClassDescriptor: { [className: string]: ClassDescriptor};
+  protected abstract async internalFind(query: Query): Promise<any[]>;
+  protected abstract async internalFirst(query: Query): Promise<any>;
+  protected abstract async internalSaveAll(className: string, objects: any[], options: SavingOptions): Promise<any[]>;
+  protected abstract async internalSaveObject(className: string, object: any, options: SavingOptions): Promise<any>;
+  protected abstract async internalDeleteAll(className: string, objects: any[]): Promise<boolean>;
+  protected abstract async internalDeleteObject(className: string, object: any): Promise<boolean>;
+
+  protected logger_: winston.LoggerInstance;
 
   constructor(schema: Schema) {
     if (schema) {
@@ -79,6 +97,10 @@ export abstract class DbAdapter {
       this.classNameToClassDescriptor = {};
       schema.forEach(classDescriptor => this.classNameToClassDescriptor[classDescriptor.className] = classDescriptor);
     }
+  }
+
+  public set logger(logger: winston.LoggerInstance) {
+    this.logger_ = logger;
   }
 
   private ensureSchemaConformance(className: string, object: any): void {
@@ -146,13 +168,6 @@ export abstract class DbAdapter {
 
     return ret;
   }
-
-  protected abstract async internalFind(query: Query): Promise<any[]>;
-  protected abstract async internalFirst(query: Query): Promise<any>;
-  protected abstract async internalSaveAll(className: string, objects: any[], options: SavingOptions): Promise<any[]>;
-  protected abstract async internalSaveObject(className: string, object: any, options: SavingOptions): Promise<any>;
-  protected abstract async internalDeleteAll(className: string, objects: any[]): Promise<boolean>;
-  protected abstract async internalDeleteObject(className: string, object: any): Promise<boolean>;
 
   @denyInternalClassQuery
   public async find(query: Query): Promise<any[]> {

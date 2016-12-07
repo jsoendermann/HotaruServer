@@ -1,6 +1,4 @@
-import HotaruServer from './HotaruServer';
-import { MongoAdapter } from './db/adapters/MongoAdapter';
-import { Query } from './db/Query';
+import { HotaruServer } from './HotaruServer';
+import { MongoAdapter } from './db/MongoAdapter';
 
-export { HotaruServer, MongoAdapter, Query };
-
+export { HotaruServer, MongoAdapter };

@@ -2,10 +2,10 @@
 /* eslint prefer-arrow-callback:0, func-names:0, global-require:0, import/no-extraneous-dependencies:0 */
 
 import install from 'jasmine-es6';
-import { HotaruUser, UserDataStore } from 'hotaru';
+import { HotaruUser, SelfContainedUserDataStore } from 'hotaru';
 import catchError from 'jasmine-es6/helpers/catch_error';
 import toBeAnAlphanumericString from 'to-be-an-alphanumeric-string';
-import { MongoAdapter } from '../lib/db/adapters/MongoAdapter';
+import { MongoAdapter } from '../lib/';
 
 import toHaveHappenedRecently from './matchers/toHaveHappenedRecently';
 
@@ -24,8 +24,8 @@ const adapterWithSchema = async (schema) => {
 };
 
 describe('MongoAdapter (schema)', function () {
-  const { Query } = require('../lib/db/Query');
-  const { SavingMode } = require('../lib/db/adapters/MongoAdapter');
+  const { Query } = require('hotaru');
+  const { SavingMode } = require('../lib/db/DbAdapter');
 
   beforeEach(async function () {
     jasmine.addMatchers({ toHaveHappenedRecently, toBeAnAlphanumericString });
@@ -159,7 +159,7 @@ describe('MongoAdapter (schema)', function () {
       { savingMode: SavingMode.CreateOnly }
     );
 
-    const user = new HotaruUser(new UserDataStore(savedUserData1));
+    const user = new HotaruUser(new SelfContainedUserDataStore(savedUserData1));
 
     const savedUser = await dbAdapter.saveUser(user);
 
@@ -181,7 +181,7 @@ describe('MongoAdapter (schema)', function () {
       { savingMode: SavingMode.CreateOnly }
     );
 
-    const user = new HotaruUser(new UserDataStore(savedUserData1));
+    const user = new HotaruUser(new SelfContainedUserDataStore(savedUserData1));
     await dbAdapter.saveUser(user);
   });
 
