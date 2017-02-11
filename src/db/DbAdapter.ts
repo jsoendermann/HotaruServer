@@ -65,7 +65,7 @@ function denyInternalClassQuery(klass: any, key: string, descriptor: any) {
 }
 
 export abstract class DbAdapter {
-  protected classNameToClassDescriptor: { [className: string]: ClassDescriptor};
+  protected classNameToClassDescriptor: { [className: string]: ClassDescriptor };
   protected abstract async internalFind(query: Query): Promise<any[]>;
   protected abstract async internalFirst(query: Query): Promise<any>;
   protected abstract async internalSaveAll(className: string, objects: any[], options: SavingOptions): Promise<any[]>;
