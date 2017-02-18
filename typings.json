@@ -6,8 +6,10 @@
   "dependencies": {
     "bcryptjs": "registry:dt/bcryptjs#2.4.0+20170109141314",
     "body-parser": "registry:dt/body-parser#0.0.0+20160726204056",
-    "express": "registry:dt/express#4.0.0+20170118060322",
     "express-serve-static-core": "registry:dt/express-serve-static-core#4.0.0+20161228005052",
+    "koa": "registry:dt/koa#2.0.0+20161224150443",
+    "koa-bodyparser": "registry:dt/koa-bodyparser#3.0.0+20170120190901",
+    "koa-router": "registry:dt/koa-router#7.0.0+20160915014424",
     "lodash": "registry:dt/lodash#4.14.0+20170130182125",
     "mime": "registry:dt/mime#0.0.0+20160428043022",
     "mongodb": "registry:dt/mongodb#2.1.0+20170210222032",
