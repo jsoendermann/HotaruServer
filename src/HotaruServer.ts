@@ -2,9 +2,7 @@ import * as Koa from 'koa'
 import Router from 'koa-router'
 import bodyParser from 'koa-bodyparser'
 
-import { json } from 'body-parser';
 import { hashSync, compareSync } from 'bcryptjs';
-import * as _ from 'lodash';
 import { isAlphanumeric, isEmail } from 'validator';
 import defaultdict from 'defaultdict-proxy';
 import Semaphore from 'semaphore-async-await';
@@ -31,9 +29,9 @@ export interface ConstructorParameters {
 const PACKAGE_VERSION = require(`${__dirname}/../package.json`).version; // eslint-disable-line
 
 const loggingMiddleware = (logger: winston.LoggerInstance, verboseLogging: boolean) => async (ctx: Koa.Context, next: Function) => {
-  console.log(JSON.stringify(ctx))
+  // console.log(JSON.stringify(ctx))
   await next()
-  console.log(JSON.stringify(ctx))
+  // console.log(JSON.stringify(ctx))
 }
 
 const setHeaderMiddleware = () => async (ctx: Koa.Context, next: Function) => {
@@ -53,7 +51,7 @@ const errorHandlingMiddleware = () => async (ctx: Koa.Context, next: Function) =
 }
 
 const dateAwareJsonHandlingMiddleware = () => async (ctx: Koa.Context, next: Function) => {
-  const payloadString = ctx.body.payloadString
+  const payloadString = ctx.request.body.payloadString
 
   if (payloadString === undefined) {
     throw new HotaruError(HotaruError.NO_PAYLOAD_SENT)
@@ -67,7 +65,9 @@ const dateAwareJsonHandlingMiddleware = () => async (ctx: Koa.Context, next: Fun
   ctx.body = { payloadString: stringify({ status: 'ok', result, serverVersion: PACKAGE_VERSION }) }
 }
 
-const sessionHandlingMiddleware = () => async (ctx: Koa.Context, next: Function) => {
+type Locks = { [userId: string]: Semaphore }
+
+const sessionHandlingMiddleware = (dbAdapter: InternalDbAdapter, locks: Locks) => async (ctx: Koa.Context, next: Function) => {
   const sessionId = ctx.payload.sessionId
 
   if (sessionId === undefined) {
@@ -77,23 +77,23 @@ const sessionHandlingMiddleware = () => async (ctx: Koa.Context, next: Function)
 
   const sessionQuery = new Query('_Session');
   sessionQuery.equalTo('_id', sessionId);
-  const session = await this.dbAdapter.internalFirst(sessionQuery);
+  const session = await dbAdapter.internalFirst(sessionQuery);
 
   if (session === null) {
     throw new HotaruError(HotaruError.SESSION_NOT_FOUND);
   }
 
-  await this.locks[session.userId].wait();
+  await locks[session.userId].wait();
   try {
     const userQuery = new Query('_User');
     userQuery.equalTo('_id', session.userId);
-    const userData = await this.dbAdapter.internalFirst(userQuery);
+    const userData = await dbAdapter.internalFirst(userQuery);
 
     if (userData === null) {
       // This is weird, the user must've gotten deleted after the session was created.
       // The best course of action here is probably to delete the session and pretend
       // it didn't exist in the first place
-      await this.dbAdapter.internalDeleteObject('_Session', session);
+      await dbAdapter.internalDeleteObject('_Session', session);
       throw new HotaruError(HotaruError.SESSION_NOT_FOUND);
     }
 
@@ -101,7 +101,7 @@ const sessionHandlingMiddleware = () => async (ctx: Koa.Context, next: Function)
 
     await next()
   } finally {
-    this.locks[session.userId].signal();
+    locks[session.userId].signal();
   }
 }
 
@@ -221,23 +221,21 @@ export function createServer({ prefix = '/', dbAdapter, /*cloudFunctionRecords, 
   const router = new Router({ prefix })
   const logger = new (winston.Logger)()
   
-  console.log(1)
+  const locks: Locks = defaultdict(() => new Semaphore(1)) as any as Locks
 
   router.use(bodyParser())
   router.use(loggingMiddleware(logger, verboseLogging))
   router.use(setHeaderMiddleware())
   router.use(errorHandlingMiddleware())
   router.use(dateAwareJsonHandlingMiddleware())
-  router.use(sessionHandlingMiddleware())
+  router.use(sessionHandlingMiddleware(dbAdapter, locks))
 
-  console.log(2)
 
 
   router.post('/_signUp', signUp(dbAdapter, validatePassword))
   router.post('/_logIn', logIn(dbAdapter))
   router.post('/_logOut', logOut(dbAdapter))
 
-  console.log(3)
   // router.post('/_synchronizeUser', server.synchronizeUser)
 
   // cloudFunctionRecords.forEach(({ name }) => {

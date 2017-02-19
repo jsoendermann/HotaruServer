@@ -20,7 +20,6 @@
     "koa": "2",
     "koa-bodyparser": "next",
     "koa-router": "next",
-    "lodash": "^4.16.4",
     "mongodb": "^2.2.10",
     "semaphore-async-await": "^1.1.2",
     "validator": "^6.1.0",
